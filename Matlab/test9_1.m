@@ -2,7 +2,7 @@
 % PROGRAM: 3D mozgáskövetés 
 % SZERZŐ: Fodor Gergő 
 % DÁTUM: 2025.11.04
-% Utolsó módosítás: 2026.02.23
+% Utolsó módosítás: 2026.03.06
 % Utolsó észrevétel:
 % 1. Megvannak a szögek. A két testrész hosszvektorai 
 % mentén felvett irányvektorok skaláris szorzatából került meghatározásra a szög
@@ -23,32 +23,12 @@
 % ------------------------------------------------------------------------------------------------------------------------------
 
 % ------------------------------------------------------------------------------------------------------------------------------
-% Megjegyzés: 2026.03.06 : 
-% Új függvény a relatív korlátozásokhoz clampJointRotation().
-% Félkész: 2. Új töltet a szögtartományok korlátozásához: az átláthatóság érdekében
-% a testek felső részének közepére egy kör/gömb kerül elhelyeésre
-% ------------------------------------------------------------------------------------------------------------------------------
-
-% ------------------------------------------------------------------------------------------------------------------------------
-% Megjegyzés: 2026.02.23 : 
-% 1. Megvannak a szögek. A két testrész hosszvektorai 
-% mentén felvett irányvektorok skaláris szorzatából került meghatározásra a szög
-% 2. Új töltet a szögtartományok korlátozásához: az átláthatóság érdekében
-% a testek felső részének közepére egy kör/gömb kerül elhelyeésre
-% ------------------------------------------------------------------------------------------------------------------------------
-
-% ------------------------------------------------------------------------------------------------------------------------------
-% Megjegyzés: 2026.01.30 : Az anatómiai mozgástartomány beállításához az
-% kellene, hogy már rögzítve legyenek a pántok, az utolsó próbálkozásnál az
-% alkar pitch (X tengely) tartománya jónak tűnt. 
-% ------------------------------------------------------------------------------------------------------------------------------
-
-% ------------------------------------------------------------------------------------------------------------------------------
 %% Külső függvények
 % switchMode() - Soros / Wifi mód váltogatás
 % initialSerial() - Soros kapcsolaat inicializálása
 % boxGeometry() - Testek megalkotása
 % updateArmPose() - Kar mozgásának frissítése
+% clapJointRotation - Szögtartomány beállítása
 % ------------------------------------------------------------------------------------------------------------------------------
 
 % ------------------------------------------------------------------------------------------------------------------------------

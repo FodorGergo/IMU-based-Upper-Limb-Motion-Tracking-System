@@ -23,6 +23,13 @@
 % ------------------------------------------------------------------------------------------------------------------------------
 
 % ------------------------------------------------------------------------------------------------------------------------------
+% Megjegyzés: 2026.03.06 : 
+% Új függvény a relatív korlátozásokhoz clampJointRotation().
+% Félkész: 2. Új töltet a szögtartományok korlátozásához: az átláthatóság érdekében
+% a testek felső részének közepére egy kör/gömb kerül elhelyeésre
+% ------------------------------------------------------------------------------------------------------------------------------
+
+% ------------------------------------------------------------------------------------------------------------------------------
 % Megjegyzés: 2026.02.23 : 
 % 1. Megvannak a szögek. A két testrész hosszvektorai 
 % mentén felvett irányvektorok skaláris szorzatából került meghatározásra a szög
@@ -42,6 +49,7 @@
 % initialSerial() - Soros kapcsolaat inicializálása
 % boxGeometry() - Testek megalkotása
 % updateArmPose() - Kar mozgásának frissítése
+% clapJointRotation - Szög
 % ------------------------------------------------------------------------------------------------------------------------------
 
 % ------------------------------------------------------------------------------------------------------------------------------
@@ -315,12 +323,12 @@ function Program()
                 break; 
             end
             
-            % % Buffer flush
-            % if app.serial.NumBytesAvailable > 50
-            %     flush(app.serial, "input");
-            %     %pause(0.002);
-            %     % continue;
-            % end
+            % % % % % % % Buffer flush
+            % % % % % % if app.serial.NumBytesAvailable > 50
+            % % % % % %     flush(app.serial, "input");
+            % % % % % %     %pause(0.002);
+            % % % % % %     % continue;
+            % % % % % % end
 
             % Adatolvasás
             if app.serial.NumBytesAvailable > 0
@@ -368,7 +376,7 @@ function Program()
                     R_upper_arm_final = app.R_offset_upper_arm * R_upper_arm;
                     R_forearm_final = app.R_offset_forearm * R_forearm;
                     R_hand_final = app.R_offset_hand * R_hand;
-                    
+
                     % --------------------------------------------------------------------------------------------------------------
                     %% Ízületi szögek számítása
 
@@ -394,6 +402,11 @@ function Program()
                     label_wrist_angle.Text = sprintf('Csukló szög: %.1f°', angle_wrist_deg);
                     
                     % --------------------------------------------------------------------------------------------------------------
+                    
+                    % !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+                    % Szöghatárok
+                    R_upper_arm_final = clampJointRotation(R_upper_arm_final, 'shoulder');
+                    % !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
                     
                     % Modell frissítése
                     updateArmPose(app.patch_upper_arm, app.patch_forearm, app.patch_hand, ... 
