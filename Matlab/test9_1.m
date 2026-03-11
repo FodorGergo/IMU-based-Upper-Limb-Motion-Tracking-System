@@ -28,7 +28,7 @@
 % initialSerial() - Soros kapcsolaat inicializálása
 % boxGeometry() - Testek megalkotása
 % updateArmPose() - Kar mozgásának frissítése
-% clapJointRotation - Szögtartomány beállítása
+% clapJointRotation()  - Szögtartomány beállítása
 % ------------------------------------------------------------------------------------------------------------------------------
 
 % ------------------------------------------------------------------------------------------------------------------------------
@@ -194,11 +194,18 @@ function Program()
     % Plotok létrehozása - Könyök/Csukló + szögívek
     app.marker_elbow    = plot3(model_ax, 0, 0, 0, 'mo','MarkerSize', 12,'MarkerFaceColor', 'm');
     app.marker_wrist    = plot3(model_ax, 0, 0, 0, 'mo','MarkerSize', 12);
-    
+
+    % !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    % ÚJ MARKEREK: A testek teteje (Orientáció vizualizálása)
+    % app.marker_upper_arm = plot3(model_ax, 0, 0, 0, 'ro','MarkerSize', 8, 'MarkerFaceColor', 'w');
+    % app.marker_forearm   = plot3(model_ax, 0, 0, 0, 'go','MarkerSize', 8, 'MarkerFaceColor', 'w');
+    % app.marker_hand      = plot3(model_ax, 0, 0, 0, 'bo','MarkerSize', 8, 'MarkerFaceColor', 'w');
+    % !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     % ------------------------------------------------------------------------------------------------------------------------------
  
     % ------------------------------------------------------------------------------------------------------------------------------
     % Alaphelyzet
+    % !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     updateArmPose(app.patch_upper_arm, app.patch_forearm, app.patch_hand, ... 
                   app.marker_elbow, app.marker_wrist, ... 
                   app.V_local_upper_arm, app.V_local_forearm, app.V_local_hand, ... 
@@ -206,7 +213,7 @@ function Program()
                   eye(3), eye(3), eye(3), ... 
                   app.upper_arm_fix);
     drawnow;
-
+    % !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     % ------------------------------------------------------------------------------------------------------------------------------
 
     % ------------------------------------------------------------------------------------------------------------------------------
@@ -388,15 +395,16 @@ function Program()
                     % !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
                     
                     % Modell frissítése
+                    % !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
                     updateArmPose(app.patch_upper_arm, app.patch_forearm, app.patch_hand, ... 
-                                  app.marker_elbow, app.marker_wrist, ... 
+                                  app.marker_elbow, app.marker_wrist,...
                                   app.V_local_upper_arm, app.V_local_forearm, app.V_local_hand, ... 
                                   app.size_upper_arm, app.size_forearm, app.size_hand, ... 
                                   R_upper_arm_final, R_forearm_final, R_hand_final, ... 
                                   app.upper_arm_fix);
                     
                     drawnow limitrate;
-
+                    % !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
           
                     
                 catch errRead
