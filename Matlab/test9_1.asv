@@ -2,12 +2,10 @@
 % PROGRAM: 3D mozgáskövetés 
 % SZERZŐ: Fodor Gergő 
 % DÁTUM: 2025.11.04
-% Utolsó módosítás: 2026.03.14
-% Utolsó ismert észrevétel:
-% Előfeltétel (Clamp) koordinátarendszerek:
+% Utolsó módosítás: 2026.03.06
+% Utolsó észrevétel:
 % Tesztből megvan 1 testre, hogy hogyan kellene megolani, a
-% koordinátarendszert. Kell 1 referencia szenzor, valamint mind a 2 szenzor leddel felfelé, valamint tetejével kifelé kell kalibrálni. 
-%Következő lépés: Korlátozás megoldása/ kiterjesztés több testre?
+% koordinátarendszert. Kell 1 referencia szenzor
 % ------------------------------------------------------------------------------------------------------------------------------
 
 % ------------------------------------------------------------------------------------------------------------------------------

@@ -12,8 +12,8 @@ function R_out = clampJointRotation(R_in, jointType)
         
         % Határok
         Z_MAX = 150; Z_MIN = -50;  
-        Y_MAX = 180; Y_MIN = -50;  
-        X_MAX = 90;  X_MIN = -70;  
+        Y_MAX = 180; Y_MIN = -180;  
+        X_MAX = 180;  X_MIN = -180;  
         
         % Korlátozás (Clamp)
         szog_Z = max(Z_MIN, min(Z_MAX, szog_Z));

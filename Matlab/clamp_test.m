@@ -1,74 +1,54 @@
 % -------------------------------------------------------------------------
-% PROGRAM: 3D Mozgáskövetés - IZOLÁCIÓS TESZT (Csak Váll)
+% PROGRAM: 3D Mozgáskövetés - TISZTA RELATÍV KINEMATIKA (Végleges Teszt)
+% Módszertan kalibrációhoz: szenzor 0 leddel felfelé , szenzor 1 ( referencia szenzor)
+% leddel felfelé tetejével kifelé 
 % -------------------------------------------------------------------------
-function Test_Vall()
+function Test_Vall_Vegleges()
     clearvars; close all; clc;
-    app = struct(); % Központi adattároló struktúra
+    app = struct(); 
     
-    %% Főablak (GUI)
-    app.figure = uifigure('Name','Izolációs Teszt - Váll','Position', [0 50 1200 700]);
+    %% Főablak és GUI beállítása
+    app.figure = uifigure('Name','Relatív Teszt - I-Pose & Irányfordítás','Position', [100 100 800 600]);
     app.figure.CloseRequestFcn = @(~,~) exitProgram(); 
+    grids = uigridlayout(app.figure,[1 2]); 
+    grids.ColumnWidth = {200,'1x'};         
     
-    grids = uigridlayout(app.figure,[2 2]); 
-    grids.ColumnWidth = {320,'1x'};         
-    grids.RowHeight = {'1x', '1x'};         
+    panel_control_grid = uigridlayout(grids,[6 1]);
     
-    %% Panelek
-    panel_control = uipanel(grids,'Title','Vezérlés','TitlePosition','centertop');
-    panel_control.Layout.Row = 1; panel_control.Layout.Column = 1;
+    % Gombok és státusz
+    button_connect = uibutton(panel_control_grid,'Text','Csatlakozás', 'ButtonPushedFcn', @(~,~) connectSerial());
+    button_start = uibutton(panel_control_grid,'Text','Indítás','Enable','off', 'ButtonPushedFcn', @(~,~) startProgram());
+    button_calibrate  = uibutton(panel_control_grid, 'Text', 'I-POSE KALIBRÁCIÓ', 'Enable', 'off', 'ButtonPushedFcn', @(~,~) Calibration(), 'FontWeight', 'bold', 'BackgroundColor', [0.85 0.33 0.1]);
+    label_status = uilabel(panel_control_grid,'Text','Status: Disconnected');
     
-    panel_display = uipanel(grids,'Title','3D Tér');
-    panel_display.Layout.Row = [1 2]; panel_display.Layout.Column = 2;
-    
-    panel_control_grid = uigridlayout(panel_control,[7 2]);
-    panel_control_grid.RowHeight = {25, 25, 25, 25, 25, 25, 25};
-    
-    grid_display = uigridlayout(panel_display, [1 1]);
-    model_ax = uiaxes(grid_display);
+    % 3D Tér beállítása
+    model_ax = uiaxes(grids); 
     axis(model_ax,'equal'); grid(model_ax,'on'); hold(model_ax,'on');
-    xlabel(model_ax,'X (Csavarás)'); ylabel(model_ax,'Y (Abdukció)'); zlabel(model_ax,'Z (Flexió)');
-    view(model_ax,3);                                                                   
+    xlabel(model_ax,'X (Abdukció tengelye)'); 
+    ylabel(model_ax,'Y (Flexió tengelye)'); 
+    zlabel(model_ax,'Z (Függőleges / Csavarás)');
+    view(model_ax, 3); 
     xlim(model_ax,[-100 100]); ylim(model_ax,[-100 100]); zlim(model_ax,[-100 100]);    
     
-    %% GUI Elemek
-    uilabel(panel_control_grid,'Text','COM Port:','HorizontalAlignment','right');
-    port = uieditfield(panel_control_grid, 'numeric', 'Value', 3); 
-    app.portName = "COM" + string(port.Value);
+    %% 3D modell setup (A kar lefelé lóg)
+    app.size_arm = [40 12 12];
+    app.arm_fix = [0, 0, 30]; % Vállízület (forgáspont) a térben
+    [app.V_local, app.Faces] = boxGeometry(app.size_arm);
+    app.patch_arm = patch(model_ax, 'Vertices', app.V_local, 'Faces', app.Faces, 'FaceColor', 'red');
     
-    uilabel(panel_control_grid,'Text','Baud:','HorizontalAlignment','right');
-    baud = uidropdown(panel_control_grid,'Items',{'115200','230400'},'Value','115200');
-    app.baudRate = str2double(baud.Value);
-    
-    button_connect = uibutton(panel_control_grid,'Text','Csatlakozás', 'ButtonPushedFcn', @(~,~) connectSerial());
-    button_disconnect = uibutton(panel_control_grid,'Text','Lecsatlakozás','Enable','off', 'ButtonPushedFcn', @(~,~) disconnectSerial());
-    button_start = uibutton(panel_control_grid,'Text','Indítás','Enable','off', 'ButtonPushedFcn', @(~,~) startProgram());
-    button_stop = uibutton(panel_control_grid,'Text','Megállítás','Enable','off', 'ButtonPushedFcn', @(~,~) stopProgram());
-    button_calibrate  = uibutton(panel_control_grid, 'Text', 'Kalibráció', 'Enable', 'off', 'FontWeight', 'bold', 'ButtonPushedFcn', @(~,~) Calibration());
-    
-    label_status = uilabel(panel_control_grid,'Text','Status: Disconnected');
-    label_status.Layout.Column = [1 2];
-
-    %% 3D modell (CSAK A VÁLL)
-    app.size_upper_arm = [40 12 12];
-    app.upper_arm_fix = [0, 0, 30];
-    [app.V_local_upper_arm, app.Faces] = boxGeometry(app.size_upper_arm);
-    
-    app.patch_upper_arm = patch(model_ax, 'Vertices', app.V_local_upper_arm, 'Faces', app.Faces, 'FaceColor', 'red', 'FaceAlpha', 0.6);
-    app.marker_upper_arm = plot3(model_ax, 0, 0, 0, 'ro','MarkerSize', 10, 'MarkerFaceColor', 'w');
-    
-    updateSingleArmPose(app.patch_upper_arm, app.marker_upper_arm, app.V_local_upper_arm, app.size_upper_arm, eye(3), app.upper_arm_fix);
-    
-    app.R_offset_upper_arm = eye(3);
+    % Ide mentjük a ferde rögzítések mátrixait (Alignment)
+    app.R_calib_0 = eye(3); 
+    app.R_calib_1 = eye(3); 
     app.requestCalibration = false;
     
-    %% Lokális függvények
+    %% GUI Függvények
     function connectSerial()
-        app.portName = "COM" + string(port.Value);
         try
-            app.serial = serialport(app.portName, str2double(baud.Value));
+            % Cseréld ki a COM portot, ha nálad nem COM3!
+            app.serial = serialport("COM3", 115200); 
             configureTerminator(app.serial, "CR/LF");
-            label_status.Text = "Csatlakozva: " + app.portName;
-            button_start.Enable = 'on'; button_disconnect.Enable = 'on';
+            label_status.Text = "Csatlakozva: COM3";
+            button_start.Enable = 'on';
         catch err
             label_status.Text = "Hiba: " + err.message;
         end
@@ -76,8 +56,11 @@ function Test_Vall()
 
     function startProgram()
         app.run = true; 
-        button_start.Enable = 'off'; button_stop.Enable = 'on'; button_calibrate.Enable = 'on';
-        R_upper_arm = eye(3);
+        button_start.Enable = 'off'; 
+        button_calibrate.Enable = 'on';
+        
+        R_raw_0 = eye(3); % Kar szenzor
+        R_raw_1 = eye(3); % Mellkas szenzor
         
         while app.run
             if ~isvalid(app.figure), break; end
@@ -86,30 +69,39 @@ function Test_Vall()
                 try
                     line = char(readline(app.serial));
                     
-                    % Csak a 0. szenzort (Váll) olvassuk!
+                    % Nyers adatok beolvasása
                     if startsWith(line, '0:')
                         data = sscanf(line, '0: %f %f %f %f'); 
-                        if length(data) == 4
-                            R_upper_arm = quat2rotm(data');
-                        end
+                        if length(data) == 4, R_raw_0 = quat2rotm(data'); end
+                    elseif startsWith(line, '1:')
+                        data = sscanf(line, '1: %f %f %f %f'); 
+                        if length(data) == 4, R_raw_1 = quat2rotm(data'); end
                     end
                     
+                    % 1. KALIBRÁCIÓ (I-Pose Mentése)
                     if app.requestCalibration
-                        app.R_offset_upper_arm = R_upper_arm'; 
+                        app.R_calib_0 = R_raw_0; 
+                        app.R_calib_1 = R_raw_1; 
                         app.requestCalibration = false;
-                        disp('--- SIKERES KALIBRÁCIÓ ---');
+                        disp('--- SZENZOROK VIRTUÁLISAN KIEGYENESÍTVE ---');
                     end
                     
-                    R_upper_arm_final = app.R_offset_upper_arm * R_upper_arm;
+                    % 2. ALIGNMENT: A rögzítési hiba "lehámozása" (Jobbról szorzás az inverzzel)
+                    R_arm_aligned = R_raw_0 * app.R_calib_0';
+                    R_chest_aligned = R_raw_1 * app.R_calib_1';
                     
-                    % KORLÁTOZÁS ÉS NYERS ADAT KIÍRÁSA
-                    R_upper_arm_final = clampJointRotation(R_upper_arm_final, 'shoulder');
+                    % 3. RELATÍV KINEMATIKA: Mellkas vs Kar (Balról szorzás a mellkas inverzével)
+                    R_joint = R_chest_aligned' * R_arm_aligned;
                     
-                    updateSingleArmPose(app.patch_upper_arm, app.marker_upper_arm, app.V_local_upper_arm, app.size_upper_arm, R_upper_arm_final, app.upper_arm_fix);
+                    % 4. IRÁNYOK MEGFORDÍTÁSA ÉS KIÍRÁS
+                    R_vizualis = processJointAngles(R_joint);
+                    
+                    % 5. RAJZOLÁS a képernyőre
+                    updatePose(app.patch_arm, app.V_local, R_vizualis, app.arm_fix);
                     drawnow limitrate;
                     
-                catch errRead
-                    % Csendes hibakezelés a teszthez
+                catch
+                    % Hiba elnyomása futás közben
                 end
             else
                 pause(0.002);
@@ -117,72 +109,59 @@ function Test_Vall()
         end
     end
 
-    function stopProgram()
-        app.run = false;
-        button_start.Enable = 'on'; button_stop.Enable = 'off';
-    end
-
-    function disconnectSerial()
-        if ~isempty(app.serial), delete(app.serial); app.serial = []; end
-        button_connect.Enable = "on"; button_disconnect.Enable = "off"; button_start.Enable = "off"; button_stop.Enable = "off";
-    end
-
     function Calibration()
-        app.requestCalibration = true;
+        app.requestCalibration = true; 
     end
-
     function exitProgram()
-        app.run = false;
+        app.run = false; 
         if isfield(app, "serial") && ~isempty(app.serial), delete(app.serial); end
-        delete(app.figure);
+        delete(app.figure); 
     end
 end
 
-%% --- SEGÉDFÜGGVÉNYEK ---
-
+%% Segédfüggvények
 function [V, F] = boxGeometry(sizeVec)
     L = sizeVec(1); W = sizeVec(2); H = sizeVec(3);
-    V = [0 -W/2 -H/2; L -W/2 -H/2; L W/2 -H/2; 0 W/2 -H/2;
-         0 -W/2 H/2; L -W/2 H/2; L W/2 H/2; 0 W/2 H/2];
+    % ÚJ GEOMETRIA: A forgáspont a [0,0,0], a doboz lefelé (-Z irányba) lóg!
+    V = [-W/2, -H/2,  0;
+          W/2, -H/2,  0;
+          W/2,  H/2,  0;
+         -W/2,  H/2,  0;
+         -W/2, -H/2, -L;
+          W/2, -H/2, -L;
+          W/2,  H/2, -L;
+         -W/2,  H/2, -L];
     F = [1 2 6 5; 2 3 7 6; 3 4 8 7; 4 1 5 8; 1 2 3 4; 5 6 7 8];
 end
 
-function updateSingleArmPose(patch_arm, marker_arm, V_local, size_arm, R_arm, fix_pos)
+function updatePose(patch_arm, V_local, R_arm, fix_pos)
     if ~isvalid(patch_arm), return; end
-    % Henger/Doboz eltolása a forgáspontba
-    V_shifted = V_local + [size_arm(1)/2, 0, 0];
-    V_rotated = (R_arm * V_shifted')';
-    V_final = V_rotated + fix_pos;
+    % Mivel a doboz alapból a [0,0,0]-ból lóg lefelé, csak forgatjuk és eltoljuk a helyére
+    V_final = (R_arm * V_local')' + fix_pos;
     set(patch_arm, 'Vertices', V_final);
-    
-    % Felső marker frissítése
-    top_local = [size_arm(1)/2; 0; size_arm(3)/2]; 
-    top_final = fix_pos' + (R_arm * top_local);
-    set(marker_arm, 'XData', top_final(1), 'YData', top_final(2), 'ZData', top_final(3));
 end
 
-function R_out = clampJointRotation(R_in, jointType)
-    % ZYX Euler konverzió
+function R_out = processJointAngles(R_in)
+    % ZYX sorrend az Euler szögekhez
     eul_deg = rad2deg(rotm2eul(R_in, 'ZYX'));
-    szog_Z = eul_deg(1);  % Z-tengely (Függőleges)
-    szog_Y = eul_deg(2);  % Y-tengely (Mélység)
-    szog_X = eul_deg(3);  % X-tengely (Csavarás)
     
-    if strcmp(jointType, 'shoulder')
-        % --- ÉLŐ NYERS ADAT KIÍRÁSA A PARANCSABLAKBA ---
-        fprintf('Váll nyers -> Z(Flexió): %5.1f° | Y(Abdukció): %5.1f° | X(Csavarás): %5.1f°\n', szog_Z, szog_Y, szog_X);
-        
-        % Szöghatárok beállítása
-        Z_MAX = 150; Z_MIN = -50;  
-        Y_MAX = 180; Y_MIN = -50;  
-        X_MAX = 90;  X_MIN = -70;  
-        
-        % Lekorlátozás (Kommentezd ki valamelyiket, ha tesztelni akarod a határokat!)
-        szog_Z = max(Z_MIN, min(Z_MAX, szog_Z));
-        szog_Y = max(Y_MIN, min(Y_MAX, szog_Y));
-        szog_X = max(X_MIN, min(X_MAX, szog_X));
-    end
+    szog_Z = eul_deg(1); % Tengely körüli Csavarás (Pronáció/Szupináció)
+    szog_Y = eul_deg(2); % Előre/Hátra emelés (Flexió/Extenzió)
+    szog_X = eul_deg(3); % Oldalra emelés (Abdukció/Addukció)
     
-    clamped_eul_rad = deg2rad([szog_Z, szog_Y, szog_X]);
-    R_out = eul2rotm(clamped_eul_rad, 'ZYX');
+    % =========================================================
+    % VIZUÁLIS IRÁNYFORDÍTÁS
+    % =========================================================
+    szog_Y = -szog_Y;   % Marad mínusz (Flexió javítása)
+    szog_X = -szog_X;   % Marad mínusz (Abdukció javítása)
+    
+    % --- JAVÍTÁS ITT: Kivettük a mínuszt, így megfordul a csavarás iránya! ---
+    % szog_Z = -szog_Z; helyett most csak:
+    szog_Z = szog_Z;    
+    
+    % Nyers, tisztított értékek kiírása a konzolra
+    fprintf('Flexió: %5.1f° | Abdukció: %5.1f° | Csavarás: %5.1f°\n', szog_Y, szog_X, szog_Z);
+    
+    % Visszaalakítjuk forgatási mátrixba a 3D rajzoló motornak
+    R_out = eul2rotm(deg2rad([szog_Z, szog_Y, szog_X]), 'ZYX');
 end
