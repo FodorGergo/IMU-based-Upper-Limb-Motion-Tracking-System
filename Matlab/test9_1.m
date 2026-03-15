@@ -391,7 +391,7 @@ function Program()
                     
                     % !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
                     % Szöghatárok
-                    R_upper_arm_final = clampJointRotation(R_upper_arm_final, 'shoulder');
+                    
                     % !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
                     
                     % Modell frissítése
