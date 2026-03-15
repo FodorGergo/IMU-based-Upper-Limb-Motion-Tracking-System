@@ -144,16 +144,16 @@ end
 function [V, F] = boxGeometry(sizeVec)
     L = sizeVec(1); W = sizeVec(2); H = sizeVec(3);
     
-    % GEOMETRIA: Vízszintes póz, a doboz a POZITÍV X irányba (jobbra) fekszik!
-    % A váll a 0-n van, a kézfej a +L koordinátán (+40).
-    V = [  0, -W/2, -H/2;  % 1. bázis pont a vállnál (X = 0)
+    % GEOMETRIA: A rögzítési pont (váll) marad a [0,0,0] origóban, 
+    % de a test most a NEGATÍV X irányba (balra/Nyugatra) nyúlik el!
+    V = [  0, -W/2, -H/2;  % 1. bázis pont a rögzítésnél (X = 0)
            0,  W/2, -H/2;  % 2.
            0,  W/2,  H/2;  % 3.
            0, -W/2,  H/2;  % 4.
-           L, -W/2, -H/2;  % 5. végpont a kézfejnél (X = +L)
-           L,  W/2, -H/2;  % 6.
-           L,  W/2,  H/2;  % 7.
-           L, -W/2,  H/2]; % 8.
+          -L, -W/2, -H/2;  % 5. a test másik vége (X = -L)
+          -L,  W/2, -H/2;  % 6.
+          -L,  W/2,  H/2;  % 7.
+          -L, -W/2,  H/2]; % 8.
           
     F = [1 2 6 5; 2 3 7 6; 3 4 8 7; 4 1 5 8; 1 2 3 4; 5 6 7 8];
 end
@@ -189,9 +189,9 @@ function R_out = processJointAngles(R_in)
     % 3. VIZUÁLIS IRÁNYFORDÍTÁS 
     % Az X és az Y tengely mozgását megfordítjuk (ellenkező irány)!
     % =========================================================
-    modell_X = modell_X;   % <--- Így az ellenkező irányba fog mozogni
+    modell_X = -modell_X;   % <--- Így az ellenkező irányba fog mozogni
     modell_Y = modell_Y;   % <--- Így az ellenkező irányba fog mozogni
-    modell_Z = modell_Z;    % A Z (csavarás) marad, ahogy volt
+    modell_Z = -modell_Z;    % A Z (csavarás) marad, ahogy volt
     
     % KONZOL KONTROLL
     fprintf('Modell X: %5.1f° | Modell Y: %5.1f° | Modell Z: %5.1f°\n', ...
