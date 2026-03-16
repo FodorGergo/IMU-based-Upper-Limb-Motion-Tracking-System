@@ -60,7 +60,7 @@ function Test_Vall_Vegleges()
         R_raw_0 = eye(3); % Kar szenzor
         R_raw_1 = eye(3); % Mellkas szenzor
         
-        while app.run
+       
             if ~isvalid(app.figure), break; end
             
             if app.serial.NumBytesAvailable > 0
@@ -73,7 +73,15 @@ function Test_Vall_Vegleges()
                         if length(data) == 4, R_raw_0 = quat2rotm(data'); end
                     elseif startsWith(line, '1:')
                         data = sscanf(line, '1: %f %f %f %f'); 
-                        if length(data) == 4, R_raw_1 = quat2rotm(data'); end
+                        if length(data) == 4
+                            R_raw_1 = quat2rotm(data'); 
+                            % !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+                            T_align = [1,  0,  0; 
+                                       0,  0,  1; 
+                                       0, -1,  0]; 
+                             % !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+                            R_raw_1 = R_raw_1 * T_align;
+                        end
                     end
                     % 1. KALIBRÁCIÓ (I-Pose Mentése)
 if app.requestCalibration
@@ -83,18 +91,39 @@ if app.requestCalibration
     disp('--- SZENZOROK VIRTUÁLISAN KIEGYENESÍTVE ---');
 end
 
+% 2. ALIGNMENT: A rögzítési hiba "lehámozása"
+R_arm_aligned = R_raw_0 * app.R_calib_0';
+R_chest_aligned = R_raw_1 * app.R_calib_1';
+
+% =====================================================
+% 3. RELATÍV KINEMATIKA (VÉGLEGES 2-SZENZOROS MÓD)
+% A mellkast (referencia) visszakötöttük a rendszerbe!
+% A mátrixot balról szorozzuk a mellkas inverzével.
+% =====================================================
+R_joint = R_chest_aligned' * R_arm_aligned;
+
+% 4. IRÁNYOK MEGFORDÍTÁSA ÉS TENGELYEK
+R_vizualis = processJointAngles(R_joint);
+                    % 1. KALIBRÁCIÓ (I-Pose Mentése)
+                    if app.requestCalibration
+                        app.R_calib_0 = R_raw_0; 
+                        app.R_calib_1 = R_raw_1; 
+                        app.requestCalibration = false;
+                        disp('--- SZENZOROK VIRTUÁLISAN KIEGYENESÍTVE ---');
+                    end
+                    
                     % 2. ALIGNMENT: A rögzítési hiba "lehámozása"
                     R_arm_aligned = R_raw_0 * app.R_calib_0';
                     R_chest_aligned = R_raw_1 * app.R_calib_1';
                     
-                    % =====================================================
-                    % 3. RELATÍV KINEMATIKA (VÉGLEGES 2-SZENZOROS MÓD)
-                    % A mellkast (referencia) visszakötöttük a rendszerbe!
-                    % A mátrixot balról szorozzuk a mellkas inverzével.
-                    % =====================================================
-                    R_joint = R_chest_aligned' * R_arm_aligned;
+                    % -----------------------------------------------------
+                    % 3. KINEMATIKA - MODOSÍTVA 1 SZENZOROS TESZTRE!
+                    % A mellkast (R_chest_aligned') kivettük a szorzásból.
+                    % Így csak a kar abszolút mozgását vizsgáljuk a teszthez.
+                    % -----------------------------------------------------
+                    R_joint = R_arm_aligned;
                     
-                    % 4. IRÁNYOK MEGFORDÍTÁSA ÉS TENGELYEK
+                    % 4. IRÁNYOK MEGFORDÍTÁSA ÉS CLAMPING (Határolás)
                     R_vizualis = processJointAngles(R_joint);
                     
                     % 5. RAJZOLÁS a képernyőre
@@ -123,13 +152,13 @@ end
 function [V, F] = boxGeometry(sizeVec)
     L = sizeVec(1); W = sizeVec(2); H = sizeVec(3);
     
-    % GEOMETRIA: Vízszintes póz, a doboz a NEGATÍV X irányba (balra) fekszik!
-    % A váll a 0-n van, a kézfej a -L koordinátán (-40).
-    V = [  0, -W/2, -H/2;  % 1. bázis pont a vállnál (X = 0)
+    % GEOMETRIA: A rögzítési pont (váll) marad a [0,0,0] origóban, 
+    % de a test most a NEGATÍV X irányba (balra/Nyugatra) nyúlik el!
+    V = [  0, -W/2, -H/2;  % 1. bázis pont a rögzítésnél (X = 0)
            0,  W/2, -H/2;  % 2.
            0,  W/2,  H/2;  % 3.
            0, -W/2,  H/2;  % 4.
-          -L, -W/2, -H/2;  % 5. végpont a kézfejnél (X = -L)
+          -L, -W/2, -H/2;  % 5. a test másik vége (X = -L)
           -L,  W/2, -H/2;  % 6.
           -L,  W/2,  H/2;  % 7.
           -L, -W/2,  H/2]; % 8.
@@ -162,11 +191,11 @@ function R_out = processJointAngles(R_in)
     
     % =========================================================
     % 3. VIZUÁLIS IRÁNYFORDÍTÁS 
-    % Az X és az Y tengely mozgását megfordítjuk (tükrözzük)!
+    % Az X és az Y tengely mozgását megfordítjuk (ellenkező irány)!
     % =========================================================
-    modell_X = -modell_X;   % <--- MÍNUSZ JEL BETÉVE (Fordított X)
-    modell_Y = -modell_Y;   % <--- MÍNUSZ JEL BETÉVE (Fordított Y) 
-    modell_Z = modell_Z;    % A Z marad úgy, ahogy volt
+    modell_X = -modell_X;   % <--- Így az ellenkező irányba fog mozogni
+    modell_Y = modell_Y;   % <--- Így az ellenkező irányba fog mozogni
+    modell_Z = -modell_Z;    % A Z (csavarás) marad, ahogy volt
     
     % KONZOL KONTROLL
     fprintf('Modell X: %5.1f° | Modell Y: %5.1f° | Modell Z: %5.1f°\n', ...

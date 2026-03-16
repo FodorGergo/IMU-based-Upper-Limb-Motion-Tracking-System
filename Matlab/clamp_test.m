@@ -60,7 +60,7 @@ function Test_Vall_Vegleges()
         R_raw_0 = eye(3); % Kar szenzor
         R_raw_1 = eye(3); % Mellkas szenzor
         
-        while app.run
+       while app.run
             if ~isvalid(app.figure), break; end
             
             if app.serial.NumBytesAvailable > 0
@@ -70,32 +70,28 @@ function Test_Vall_Vegleges()
                     % Nyers adatok beolvasása
                     if startsWith(line, '0:')
                         data = sscanf(line, '0: %f %f %f %f'); 
-                        if length(data) == 4, R_raw_0 = quat2rotm(data'); end
+                        if length(data) == 4
+                            R_raw_0 = quat2rotm(data'); 
+                        end
+                        
                     elseif startsWith(line, '1:')
                         data = sscanf(line, '1: %f %f %f %f'); 
-                        if length(data) == 4, R_raw_1 = quat2rotm(data'); end
+                        if length(data) == 4
+                            R_raw_1 = quat2rotm(data'); 
+                            
+                           % =========================================================
+                            % TENGELYCSERE A MELLKASI SZENZORON (JOBBRA 90 FOK)
+                            % A T_align mátrix most a másik irányba forgat az X-tengely körül.
+                            % A mínusz jel visszakerült az alsó sorba!
+                            % =========================================================
+                            T_align = [1,  0,  0; 
+                                       0,  0,  1; 
+                                       0, -1,  0];
+                            
+                            R_raw_1 = R_raw_1 * T_align;
+                        end
                     end
-                    % 1. KALIBRÁCIÓ (I-Pose Mentése)
-if app.requestCalibration
-    app.R_calib_0 = R_raw_0; 
-    app.R_calib_1 = R_raw_1; 
-    app.requestCalibration = false;
-    disp('--- SZENZOROK VIRTUÁLISAN KIEGYENESÍTVE ---');
-end
-
-% 2. ALIGNMENT: A rögzítési hiba "lehámozása"
-R_arm_aligned = R_raw_0 * app.R_calib_0';
-R_chest_aligned = R_raw_1 * app.R_calib_1';
-
-% =====================================================
-% 3. RELATÍV KINEMATIKA (VÉGLEGES 2-SZENZOROS MÓD)
-% A mellkast (referencia) visszakötöttük a rendszerbe!
-% A mátrixot balról szorozzuk a mellkas inverzével.
-% =====================================================
-R_joint = R_chest_aligned' * R_arm_aligned;
-
-% 4. IRÁNYOK MEGFORDÍTÁSA ÉS TENGELYEK
-R_vizualis = processJointAngles(R_joint);
+                    
                     % 1. KALIBRÁCIÓ (I-Pose Mentése)
                     if app.requestCalibration
                         app.R_calib_0 = R_raw_0; 
@@ -108,14 +104,13 @@ R_vizualis = processJointAngles(R_joint);
                     R_arm_aligned = R_raw_0 * app.R_calib_0';
                     R_chest_aligned = R_raw_1 * app.R_calib_1';
                     
-                    % -----------------------------------------------------
-                    % 3. KINEMATIKA - MODOSÍTVA 1 SZENZOROS TESZTRE!
-                    % A mellkast (R_chest_aligned') kivettük a szorzásból.
-                    % Így csak a kar abszolút mozgását vizsgáljuk a teszthez.
-                    % -----------------------------------------------------
-                    R_joint = R_arm_aligned;
+                    % =====================================================
+                    % 3. RELATÍV KINEMATIKA (VÉGLEGES 2-SZENZOROS MÓD)
+                    % A mellkast (referencia) visszakötöttük a rendszerbe!
+                    % =====================================================
+                    R_joint = R_chest_aligned' * R_arm_aligned;
                     
-                    % 4. IRÁNYOK MEGFORDÍTÁSA ÉS CLAMPING (Határolás)
+                    % 4. IRÁNYOK MEGFORDÍTÁSA ÉS TENGELYEK
                     R_vizualis = processJointAngles(R_joint);
                     
                     % 5. RAJZOLÁS a képernyőre
@@ -173,19 +168,16 @@ function R_out = processJointAngles(R_in)
     nyers_Y = eul_deg(2); 
     nyers_X = eul_deg(3); 
     
+   % =========================================================
+    % 2. TENGELY-CSERE AZ X ÉS Y KÖZÖTT
+    % Mivel a valóságban a két mozgás felcserélődött a képernyőn,
+    % itt keresztbe kötjük őket!
     % =========================================================
-    % 2. TISZTA 1:1 TENGELY-LEKÉPEZÉS
-    % Mindenki a saját helyén marad!
-    % =========================================================
-    modell_X = nyers_X;  % A fizikai X mozgatja a modell X-ét
-    modell_Y = nyers_Y;  % A fizikai Y mozgatja a modell Y-ját
-    modell_Z = nyers_Z;  % A fizikai Z mozgatja a modell Z-jét
+    modell_X = nyers_Y;  % <--- A fizikai Y mozgatja a modell X-ét
+    modell_Y = nyers_X;  % <--- A fizikai X mozgatja a modell Y-ját
+    modell_Z = nyers_Z;  % A Z (csavarás) a helyén marad
     
     % =========================================================
-    % 3. VIZUÁLIS IRÁNYFORDÍTÁS 
-    % Az X és az Y tengely mozgását megfordítjuk (tükrözzük)!
-    % =========================================================
-   % =========================================================
     % 3. VIZUÁLIS IRÁNYFORDÍTÁS 
     % Az X és az Y tengely mozgását megfordítjuk (ellenkező irány)!
     % =========================================================
