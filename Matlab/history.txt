@@ -1,4 +1,11 @@
 ------------------------------------------------------------------------------------------------------------------------------
+Megjegyzés: 2026.03.17 : 
+Sikerült megcsinálni a 2 szenzoros dinamikus(?) koordinátarendszert,valamint sikerült a felkar szenzorra a clamp-et beállítani a teszt fileban.
+
+Következő lépés: ez után érdemes megoldani, hogy az alkar a felkarhoz realítv legyen és ezt bekalibrálni ( még nem tudom hogyan lesz)   
+------------------------------------------------------------------------------------------------------------------------------
+
+------------------------------------------------------------------------------------------------------------------------------
 Megjegyzés: 2026.03.16 : 
 Kiderült, hogy kellene referencia szenzoroknak a clamphoz, ezért teszt file lett létrehozva és 1 test-re most jó a referencia koordináta-rendszer
 Továbbiakban meg kellene oldani az 1 testes clampot, amit a mellkasi szenzorhoz(?) relatívan állítja be a clampot. Utána az alkartól már ki kell találni, hogy mihez képest kell korlátozni. 

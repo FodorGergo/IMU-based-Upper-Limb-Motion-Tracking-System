@@ -37,8 +37,9 @@ function Test_Vall_Vegleges()
     
     % Ide mentjük a ferde rögzítések mátrixait (Alignment)
     app.R_calib_0 = eye(3); 
-    app.R_calib_1 = eye(3); 
+    app.R_calib_1 = eye(3);
     app.requestCalibration = false;
+    app.isCalibrated = false; % <--- ÚJ: Biztonsági kapcsoló a Clamp-hez
     
     %% GUI Függvények
     function connectSerial()
@@ -97,6 +98,7 @@ function Test_Vall_Vegleges()
                         app.R_calib_0 = R_raw_0; 
                         app.R_calib_1 = R_raw_1; 
                         app.requestCalibration = false;
+                        app.isCalibrated = true; % <--- ÚJ: Bekapcsoljuk a Clamp-et!
                         disp('--- SZENZOROK VIRTUÁLISAN KIEGYENESÍTVE ---');
                     end
                     
@@ -111,7 +113,8 @@ function Test_Vall_Vegleges()
                     R_joint = R_chest_aligned' * R_arm_aligned;
                     
                     % 4. IRÁNYOK MEGFORDÍTÁSA ÉS TENGELYEK
-                    R_vizualis = processJointAngles(R_joint);
+                    % Most már átadjuk neki a kapcsoló állapotát is!
+                    R_vizualis = processJointAngles(R_joint, app.isCalibrated);
                     
                     % 5. RAJZOLÁS a képernyőre
                     updatePose(app.patch_arm, app.V_local, R_vizualis, app.arm_fix);
@@ -159,36 +162,47 @@ function updatePose(patch_arm, V_local, R_arm, fix_pos)
     set(patch_arm, 'Vertices', V_final);
 end
 
-function R_out = processJointAngles(R_in)
+% Figyeld az első sort, bekerült a második bemenet!
+function R_out = processJointAngles(R_in, isCalibrated)
     % 1. Mátrix visszabontása Euler szögekre (ZYX)
     eul_deg = rad2deg(rotm2eul(R_in, 'ZYX'));
     
-    % A SZENZOR NYERS JELZÉSEI
     nyers_Z = eul_deg(1); 
     nyers_Y = eul_deg(2); 
     nyers_X = eul_deg(3); 
     
-   % =========================================================
     % 2. TENGELY-CSERE AZ X ÉS Y KÖZÖTT
-    % Mivel a valóságban a két mozgás felcserélődött a képernyőn,
-    % itt keresztbe kötjük őket!
-    % =========================================================
-    modell_X = nyers_Y;  % <--- A fizikai Y mozgatja a modell X-ét
-    modell_Y = nyers_X;  % <--- A fizikai X mozgatja a modell Y-ját
-    modell_Z = nyers_Z;  % A Z (csavarás) a helyén marad
+    modell_X = nyers_Y;  
+    modell_Y = nyers_X;  
+    modell_Z = nyers_Z;  
     
-    % =========================================================
     % 3. VIZUÁLIS IRÁNYFORDÍTÁS 
-    % Az X és az Y tengely mozgását megfordítjuk (ellenkező irány)!
-    % =========================================================
-    modell_X = -modell_X;   % <--- Így az ellenkező irányba fog mozogni
-    modell_Y = modell_Y;   % <--- Így az ellenkező irányba fog mozogni
-    modell_Z = -modell_Z;    % A Z (csavarás) marad, ahogy volt
+    modell_X = modell_X;   
+    modell_Y = modell_Y;   
+    modell_Z = -modell_Z;    
     
+    
+    % =========================================================
+    % 4. ANATÓMIAI KORLÁTOZÁS (CLAMP) - CSAK KALIBRÁLÁS UTÁN!
+    % (Invertált határok a szenzor/3D motor negatív iránya miatt)
+    % =========================================================
+    if isCalibrated
+        % X TENGELY (Csavarás / Rotáció): Szimmetrikus (+/- 95°)
+        modell_X = max(min(modell_X, 95), -95);
+        
+        % Y TENGELY (Oldalra emelés / Abdukció): A negatív irány az emelés!
+        % Eredeti: [-55, 190] -> Új, fordított: [-190, 55]
+        modell_Y = max(min(modell_Y, 55), -190);
+        
+        % Z TENGELY (Előre-hátra emelés / Flexió): A negatív irány az emelés!
+        % Eredeti: [-65, 190] -> Új, fordított: [-190, 65]
+        modell_Z = max(min(modell_Z, 65), -190);
+    end
+
     % KONZOL KONTROLL
-    fprintf('Modell X: %5.1f° | Modell Y: %5.1f° | Modell Z: %5.1f°\n', ...
+    fprintf('Csavarás(X): %5.1f° | Oldalra(Y): %5.1f° | Előre(Z): %5.1f°\n', ...
             modell_X, modell_Y, modell_Z);
             
-    % 4. Visszaalakítás mátrixba a 3D motornak
+    % 5. Visszaalakítás mátrixba a 3D motornak
     R_out = eul2rotm(deg2rad([modell_Z, modell_Y, modell_X]), 'ZYX');
 end
