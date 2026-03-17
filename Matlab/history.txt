@@ -1,4 +1,10 @@
 ------------------------------------------------------------------------------------------------------------------------------
+Megjegyzés: 2026.03.16 : 
+Kiderült, hogy kellene referencia szenzoroknak a clamphoz, ezért teszt file lett létrehozva és 1 test-re most jó a referencia koordináta-rendszer
+Továbbiakban meg kellene oldani az 1 testes clampot, amit a mellkasi szenzorhoz(?) relatívan állítja be a clampot. Utána az alkartól már ki kell találni, hogy mihez képest kell korlátozni. 
+------------------------------------------------------------------------------------------------------------------------------
+
+------------------------------------------------------------------------------------------------------------------------------
 Megjegyzés: 2026.03.06 : 
 Új függvény a relatív korlátozásokhoz clampJointRotation().
 Félkész: 2. Új töltet a szögtartományok korlátozásához: az átláthatóság érdekében a testek felső részének közepére egy kör/gömb kerül elhelyeésre
