@@ -283,13 +283,6 @@ function Program()
 
         % Leírás: 
 
-        %!!!!!!
-        % if isempty(app.serial)
-        %     uialert(app.figure, 'Nincs aktív kapcsolat!', 'Hiba');
-        %     return; 
-        % end
-        %!!!!!!
-
         app.run = true; % Fut-e a program? 
         button_start.Enable = 'off';
         button_stop.Enable = 'on';
@@ -308,13 +301,6 @@ function Program()
             if ~isvalid(app.figure), 
                 break; 
             end
-            
-            % % % % % % % Buffer flush
-            % % % % % % if app.serial.NumBytesAvailable > 50
-            % % % % % %     flush(app.serial, "input");
-            % % % % % %     %pause(0.002);
-            % % % % % %     % continue;
-            % % % % % % end
 
             % Adatolvasás
             if app.serial.NumBytesAvailable > 0
