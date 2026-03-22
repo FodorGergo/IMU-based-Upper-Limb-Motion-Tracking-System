@@ -1,21 +1,19 @@
 % -------------------------------------------------------------------------
-% PROGRAM: 3D Mozgáskövetés - 3-SZENZOROS KINEMATIKAI LÁNC (Mellkas-Kar)
-% Protokoll: Kalibráció T-POSE-ban (Kinyújtott kar oldalra, vízszintesen)
-% Geometria: Dobozok az X-tengely mentén
+% PROGRAM: 3D Mozgáskövetés - 4-SZENZOROS KINEMATIKAI LÁNC (Kézfejjel)
+% Protokoll: Kalibráció T-POSE-ban (Kinyújtott kar, tenyér lefelé/előre)
 % -------------------------------------------------------------------------
-function Test_Vall_Alkar()
+function Test_Vall_Alkar_Kezfej()
     clearvars; close all; clc;
     app = struct(); 
     
     %% Főablak és GUI beállítása
-    app.figure = uifigure('Name','Kinematikai Lánc Teszt - T-Pose','Position', [100 100 800 600]);
+    app.figure = uifigure('Name','Kinematikai Lánc Teszt - 4 Szenzor','Position', [100 100 800 600]);
     app.figure.CloseRequestFcn = @(~,~) exitProgram(); 
     grids = uigridlayout(app.figure,[1 2]); 
     grids.ColumnWidth = {200,'1x'};         
     
     panel_control_grid = uigridlayout(grids,[6 1]);
     
-    % Gombok és státusz
     button_connect = uibutton(panel_control_grid,'Text','Csatlakozás', 'ButtonPushedFcn', @(~,~) connectSerial());
     button_start = uibutton(panel_control_grid,'Text','Indítás','Enable','off', 'ButtonPushedFcn', @(~,~) startProgram());
     button_calibrate  = uibutton(panel_control_grid, 'Text', 'T-POSE KALIBRÁCIÓ', 'Enable', 'off', 'ButtonPushedFcn', @(~,~) Calibration(), 'FontWeight', 'bold', 'BackgroundColor', [0.85 0.33 0.1]);
@@ -29,27 +27,33 @@ function Test_Vall_Alkar()
     xlim(model_ax,[-100 100]); ylim(model_ax,[-100 100]); zlim(model_ax,[-100 100]);    
     
     %% 3D modell setup (Hierarchikus geometriák)
-    app.arm_fix = [0, 0, 30]; % Vállízület (gyökér pont) a térben
+    app.arm_fix = [0, 0, 30]; % Vállízület
     
     % 1. FELKAR (Piros)
-    app.size_upper_arm = [40 12 12]; % Hossz: 40
+    app.size_upper_arm = [40 12 12]; 
     [app.V_local_ua, app.Faces] = boxGeometry(app.size_upper_arm);
     app.patch_ua = patch(model_ax, 'Vertices', app.V_local_ua, 'Faces', app.Faces, 'FaceColor', 'red');
     
-    % 2. ALKAR (Zöld - Rövidebb)
-    app.size_forearm = [30 12 12]; % Hossz: 30 (Kicsit rövidebb, mint kérted)
+    % 2. ALKAR (Zöld)
+    app.size_forearm = [30 10 10]; 
     [app.V_local_fa, ~] = boxGeometry(app.size_forearm);
-    app.patch_fa = patch(model_ax, 'Vertices', app.V_local_fa, 'Faces', app.Faces, 'FaceColor', 'green'); % <--- ZÖLD SZÍN
+    app.patch_fa = patch(model_ax, 'Vertices', app.V_local_fa, 'Faces', app.Faces, 'FaceColor', 'green'); 
     
-    % Változók inicializálása
-    app.R_calib_0 = eye(3); app.R_calib_1 = eye(3); app.R_calib_2 = eye(3);
+    % 3. ÚJ: KÉZFEJ (Kék, rövidebb és laposabb)
+    app.size_hand = [15 10 4]; 
+    [app.V_local_hand, ~] = boxGeometry(app.size_hand);
+    app.patch_hand = patch(model_ax, 'Vertices', app.V_local_hand, 'Faces', app.Faces, 'FaceColor', 'blue'); 
+    
+    % Változók inicializálása (Már 4 db!)
+    app.R_calib_0 = eye(3); app.R_calib_1 = eye(3); 
+    app.R_calib_2 = eye(3); app.R_calib_3 = eye(3);
     app.requestCalibration = false;
     app.isCalibrated = false; 
     
     %% GUI Függvények
     function connectSerial()
         try
-            app.serial = serialport("COM3", 115200); % Cseréld, ha kell!
+            app.serial = serialport("COM3", 115200); 
             configureTerminator(app.serial, "CR/LF");
             label_status.Text = "Csatlakozva: COM3";
             button_start.Enable = 'on';
@@ -62,9 +66,9 @@ function Test_Vall_Alkar()
         app.run = true; 
         button_start.Enable = 'off'; 
         button_calibrate.Enable = 'on';
-        flush(app.serial); % Takarítás indításkor
+        flush(app.serial); 
         
-        R_raw_0 = eye(3); R_raw_1 = eye(3); R_raw_2 = eye(3); % Nyers mátrixok
+        R_raw_0 = eye(3); R_raw_1 = eye(3); R_raw_2 = eye(3); R_raw_3 = eye(3);
         
        while app.run
             if ~isvalid(app.figure), break; end
@@ -73,7 +77,7 @@ function Test_Vall_Alkar()
                 try
                     line = char(readline(app.serial));
                     
-                    % PROTOKOLL: 3-SZENZOROS ADATBEOLVASÁS
+                    % 4-SZENZOROS ADATBEOLVASÁS
                     if startsWith(line, '0:')
                         data = sscanf(line, '0: %f %f %f %f'); 
                         if length(data) == 4, R_raw_0 = quat2rotm(data'); end
@@ -82,66 +86,72 @@ function Test_Vall_Alkar()
                         data = sscanf(line, '1: %f %f %f %f'); 
                         if length(data) == 4
                             R_raw_1 = quat2rotm(data'); 
-                            % TENGELYCSERE A MELLKASON (Marad a tegnapi)
-                            T_align = [1,  0,  0; 0,  0,  1; 0, -1,  0];
+                            T_align = [1, 0, 0; 0, 0, 1; 0, -1, 0];
                             R_raw_1 = R_raw_1 * T_align;
                         end
                     
-                    elseif startsWith(line, '2:') % <--- ÚJ: ALKAR ADAT
+                    elseif startsWith(line, '2:') 
                         data = sscanf(line, '2: %f %f %f %f'); 
                         if length(data) == 4, R_raw_2 = quat2rotm(data'); end
+                        
+                    elseif startsWith(line, '4:')
+                        data = sscanf(line, '4: %f %f %f %f'); 
+                        if length(data) == 4, R_raw_3 = quat2rotm(data'); end
                     end
                     
-                    % =========================================================
-                    % 1. KALIBRÁCIÓ (Hierarchikus T-Pose Mentése)
-                    % Ekkor a kar teljesen kinyújtva, vízszintesen áll!
-                    % =========================================================
+                    % 1. KALIBRÁCIÓ (4 szenzor nullázása)
                     if app.requestCalibration
                         app.R_calib_0 = R_raw_0; 
                         app.R_calib_1 = R_raw_1; 
-                        app.R_calib_2 = R_raw_2; % <--- ÚJ: Alkar nullpont mentés
+                        app.R_calib_2 = R_raw_2; 
+                        app.R_calib_3 = R_raw_3; % ÚJ
                         app.requestCalibration = false;
                         app.isCalibrated = true; 
-                        disp('--- HIERARCHIKUS LÁNC KIEGYENESÍTVE (T-POSE) ---');
+                        disp('--- 4-SZENZOROS LÁNC KIEGYENESÍTVE ---');
                     end
                     
-                    % 2. ALIGNMENT: A rögzítési hibák "lehámozása"
+                    % 2. ALIGNMENT: Rögzítési hibák "lehámozása"
                     R_arm_aligned = R_raw_0 * app.R_calib_0';
                     R_chest_aligned = R_raw_1 * app.R_calib_1';
-                    R_forearm_aligned = R_raw_2 * app.R_calib_2'; % <--- ÚJ
+                    R_forearm_aligned = R_raw_2 * app.R_calib_2'; 
+                    R_hand_aligned = R_raw_3 * app.R_calib_3'; % ÚJ
                     
-                    % =========================================================
-                    % 3. HIERARCHIKUS KINEMATIKA (A SZABÁLY)
-                    % Mindig a "Szülő" inverzével szorozzuk a "Gyermeket".
-                    % =========================================================
+                    % 3. HIERARCHIKUS KINEMATIKA
                     
                     % Ízület 1: Váll (Felkar viszonyul a Mellkashoz)
                     R_shoulder_joint = R_chest_aligned' * R_arm_aligned;
                     R_shoulder_viz = processShoulderAngles(R_shoulder_joint, app.isCalibrated);
                     
-                    % Ízület 2: Könyök (Alkar viszonyul a Felkarhoz - mellkas kihagyva)
-                    R_elbow_joint = R_arm_aligned' * R_forearm_aligned; % <--- ÚJ MATEK
-                    R_elbow_viz = processElbowAngles(R_elbow_joint, app.isCalibrated); % <--- ÚJ FÜGGVÉNY
+                    % Ízület 2: Könyök (Alkar viszonyul a Felkarhoz)
+                    R_elbow_joint = R_arm_aligned' * R_forearm_aligned; 
+                    R_elbow_viz = processElbowAngles(R_elbow_joint, app.isCalibrated); 
                     
-                    % =========================================================
-                    % 4. RAJZOLÁS: FORWARD KINEMATICS (Az Egymásba fűzés)
-                    % =========================================================
-                    drawnow; % Frissítés kezdete
+                    % ÚJ Ízület 3: Csukló (Kézfej viszonyul az Alkarhoz)
+                    R_wrist_joint = R_forearm_aligned' * R_hand_aligned; 
+                    R_wrist_viz = processWristAngles(R_wrist_joint, app.isCalibrated);
                     
-                    % Lépés A: Felkar kirajzolása a vállhoz (Fix pont)
+                    % 4. RAJZOLÁS: FORWARD KINEMATICS
+                    drawnow; 
+                    
+                    % A: Felkar (Fix vállponthoz)
                     V_ua_final = (R_shoulder_viz * app.V_local_ua')' + app.arm_fix;
                     set(app.patch_ua, 'Vertices', V_ua_final);
                     
-                    % Lépés B: Virtuális Könyökpont kiszámolása (Felkar vége)
-                    % Alap geometriánk -X irányú, így ott a vége!
+                    % B: Virtuális Könyökpont kiszámolása
                     current_elbow_pos = (R_shoulder_viz * [-app.size_upper_arm(1); 0; 0])' + app.arm_fix;
                     
-                    % Lépés C: Alkar globális forgása (Váll forgása + Könyök forgása)
+                    % C: Alkar (Csatlakozik a könyökhöz)
                     R_forearm_global = R_shoulder_viz * R_elbow_viz;
-                    
-                    % Lépés D: Alkar kirajzolása a mozgó könyökponthoz!
                     V_fa_final = (R_forearm_global * app.V_local_fa')' + current_elbow_pos;
                     set(app.patch_fa, 'Vertices', V_fa_final);
+                    
+                    % ÚJ D: Virtuális Csuklópont kiszámolása (Alkar vége)
+                    current_wrist_pos = (R_forearm_global * [-app.size_forearm(1); 0; 0])' + current_elbow_pos;
+                    
+                    % ÚJ E: Kézfej (Csatlakozik a csuklóhoz)
+                    R_hand_global = R_forearm_global * R_wrist_viz; % Örökli az alkar és a felkar forgását is!
+                    V_hand_final = (R_hand_global * app.V_local_hand')' + current_wrist_pos;
+                    set(app.patch_hand, 'Vertices', V_hand_final);
                     
                 catch
                     % Hiba elnyomása futás közben
@@ -151,7 +161,6 @@ function Test_Vall_Alkar()
             end
         end
     end
-
     function Calibration(), app.requestCalibration = true; end
     
     function exitProgram()
@@ -169,54 +178,46 @@ function [V, F] = boxGeometry(sizeVec)
     F = [1 2 6 5; 2 3 7 6; 3 4 8 7; 4 1 5 8; 1 2 3 4; 5 6 7 8];
 end
 
-%% 1. VÁLL ÍZÜLET FELDOLGOZÁSA (Felkar-Mellkas)
+%% 1. VÁLL
 function R_out = processShoulderAngles(R_in, isCalibrated)
-    eul_deg = rad2deg(rotm2eul(R_in, 'ZYX')); % [Z, Y, X]
-    
-    % Tengelycsere és irányítás (A tegnapi tiszta logikád)
-    modell_Z_twist = -eul_deg(1); % Csavarás (Z)
-    modell_Y_side = -eul_deg(2);   % Oldalra emelés (Y)
-    modell_X_hinge = -eul_deg(3);  % Csavarás
-    
-    % Clamp (Tegnapi megfordított határok, mivel T-pose-ban 0)
+    eul_deg = rad2deg(rotm2eul(R_in, 'ZYX')); 
+    modell_Z_twist = -eul_deg(1); 
+    modell_Y_side = -eul_deg(2);   
+    modell_X_hinge = -eul_deg(3);  
     if isCalibrated
         modell_Z_twist = max(min(modell_Z_twist, 95), -95);
-        modell_Y_side = max(min(modell_Y_side, 55), -190); % Emelés negatív
-        modell_X_hinge = max(min(modell_X_hinge, 65), -190); % Emelés negatív
+        modell_Y_side = max(min(modell_Y_side, 55), -190); 
+        modell_X_hinge = max(min(modell_X_hinge, 190), -65); 
     end
-            
     R_out = eul2rotm(deg2rad([-modell_Z_twist, modell_Y_side, modell_X_hinge]), 'ZYX');
 end
 
-%% 2. ÚJ: KÖNYÖK ÍZÜLET FELDOLGOZÁSA (Alkar-Felkar)
-%% 2. ÚJ: KÖNYÖK ÍZÜLET FELDOLGOZÁSA (Alkar-Felkar)
+%% 2. KÖNYÖK
 function R_out = processElbowAngles(R_in, isCalibrated)
-    eul_deg = rad2deg(rotm2eul(R_in, 'ZYX')); % [Z, Y, X]
-    
-    % Mivel a szenzorok ugyanúgy állnak, a leképezés hasonló
-    % Mivel a szenzorok ugyanúgy állnak, a leképezés hasonló
-    
-    % VISSZATETTÜK A MÍNUSZT: Így már a felkarral azonos irányba (előre) fog hajlani!
+    eul_deg = rad2deg(rotm2eul(R_in, 'ZYX')); 
     modell_Z_hinge = -eul_deg(1); 
-    
-    % LEVETTÜK A MÍNUSZT: Hogy ez is szinkronban legyen a vállal
     modell_Y_side = -eul_deg(2);   
-    
-    modell_X_twist = -eul_deg(3);  % Alkar csavarása marad
-      
-
+    modell_X_twist = -eul_deg(3);  
     if isCalibrated
-        % 1. KÖNYÖKHAJLÍTÁS (Fő mozgás a zsanéron)
-        % Anatómia: ~0° (egyenes) és ~150° (behajlítva) között.
         modell_Z_hinge = max(min(modell_Z_hinge, 5), -150);
-        
-        % 2. OLDALIRÁNYÚ TÖRÉS (A könyök nem hajolhat oldalra!)
-        % Szigorú korlát: max +/- 5 fok a bőr/izom mozgásának kompenzálására
         modell_Y_side = max(min(modell_Y_side, 5), -5);
-        
-        % 3. ALKAR CSAVARÁSA (Pronáció / Szupináció)
-        % Szimmetrikus mozgás: +/- 90 fok (5 fok rátartással 95)
         modell_X_twist = max(min(modell_X_twist, 95), -95);
     end
     R_out = eul2rotm(deg2rad([-modell_Z_hinge, modell_Y_side, modell_X_twist]), 'ZYX');
+end
+
+%% 3. ÚJ: CSUKLÓ (Kézfej-Alkar)
+function R_out = processWristAngles(R_in, isCalibrated)
+    eul_deg = rad2deg(rotm2eul(R_in, 'ZYX')); 
+    
+    % Egyelőre nyers beolvasás, előjel cserék és Clamp nélkül!
+    modell_Z_flex = -eul_deg(1);  % Csukló hajlítása (Flexió/Extenzió)
+    modell_Y_dev = -eul_deg(2);   % Csukló oldalra (Ulnáris/Radiális deviáció)
+    modell_X_twist = -eul_deg(3); % Bár a csukló nem tud csavarodni (az alkar csavarodik), a szenzor zajt mérhet
+    
+    % =========================================================
+    % CLAMP KIKAPCSOLVA: Nyers teszteléshez
+    % =========================================================
+    
+    R_out = eul2rotm(deg2rad([-modell_Z_flex, modell_Y_dev, modell_X_twist]), 'ZYX');
 end
