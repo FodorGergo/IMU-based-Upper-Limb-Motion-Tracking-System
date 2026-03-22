@@ -1,4 +1,15 @@
 ------------------------------------------------------------------------------------------------------------------------------
+Megjegyzés: 2026.03.22 : 
+Megvan a 3 szenzoros ( 2 objektumos) clamp
+
+Következő lépés:
+-kézfej 4. szenzor ( 3. obj) létrehozása kinematikai lánc kialakítása, valamint a clamp beállítása
+-KELL MAJD A VEZÉRLÉSBE EGY LEGÖRDÜLŐ MENÜ AMIVEL A JOBB/BAL KAR VAN KIVÁLASZTVA A TESZTHEZ
+
+-nagyon laggol a program meg kell nézni, hogy hogyan lehetne optimalizálni
+------------------------------------------------------------------------------------------------------------------------------
+
+------------------------------------------------------------------------------------------------------------------------------
 Megjegyzés: 2026.03.17 : 
 Sikerült megcsinálni a 2 szenzoros dinamikus(?) koordinátarendszert,valamint sikerült a felkar szenzorra a clamp-et beállítani a teszt fileban.
 
