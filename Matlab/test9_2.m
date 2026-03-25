@@ -28,6 +28,7 @@
 % boxGeometry() - Testek megalkotása
 % updateArmPose() - Kar mozgásának frissítése
 % clampJointRotation()  - Szögtartomány beállítása
+% calculateJointAngle() - Ízületi szögek meghatározása
 % ------------------------------------------------------------------------------------------------------------------------------
 
 % ------------------------------------------------------------------------------------------------------------------------------
@@ -367,34 +368,17 @@ function Program()
                     % --------------------------------------------------------------------------------------------------------------
                     %Ízületek (Szülő' * Gyermek) + Clamp + Élő szögek lekérése
                     R_shoulder_joint = R_final_chest' * R_final_upper_arm;
-                    [R_shoulder_viz, ~] = clampJointRotation('shoulder', R_shoulder_joint, app.isCalibrated, app.isLeftArm);
+                    R_shoulder_viz = clampJointRotation('shoulder', R_shoulder_joint, app.isCalibrated, app.isLeftArm);
                     
                     R_elbow_joint = R_final_upper_arm' * R_final_forearm; 
-                    [R_elbow_viz, angle_elbow_deg] = clampJointRotation('elbow', R_elbow_joint, app.isCalibrated, app.isLeftArm); 
+                    R_elbow_viz = clampJointRotation('elbow', R_elbow_joint, app.isCalibrated, app.isLeftArm); 
                     
                     R_wrist_joint = R_final_forearm' * R_final_hand; 
-                    [R_wrist_viz, angle_wrist_deg] = clampJointRotation('wrist', R_wrist_joint, app.isCalibrated, app.isLeftArm);
+                    R_wrist_viz = clampJointRotation('wrist', R_wrist_joint, app.isCalibrated, app.isLeftArm);
 
-                    %% Ízületi szögek számítása
-                    % 
-                    % % a*b = |a|*|b|*cos(Théta)
-                    % % cos(Théta) = (a*b)/(|a|*|b|)
-                    % 
-                    % % Irányvektorok
-                    % v_upper_arm = R_final_upper_arm(:, 1); 
-                    % v_forearm = R_final_forearm(:, 1); 
-                    % v_hand = R_final_hand(:, 1); 
-                    % 
-                    % % Skaláris szorzatok 
-                    % cos_theta_elbow = dot(v_upper_arm, v_forearm);
-                    % cos_theta_wrist = dot(v_forearm, v_hand);
-                    % 
-                    % % Számítási pontatlanságokból eredő hibák kivédése (Clamp -1 és 1 közé)
-                    % cos_theta_elbow = max(-1, min(1, cos_theta_elbow));
-                    % cos_theta_wrist = max(-1, min(1, cos_theta_wrist));
-                    % 
-                    % angle_elbow_deg = real(rad2deg(acos(cos_theta_elbow)));
-                    % angle_wrist_deg = real(rad2deg(acos(cos_theta_wrist)));
+                  
+                   angle_elbow_deg = calculateJointAngle(R_final_upper_arm, R_final_forearm);
+                   angle_wrist_deg = calculateJointAngle(R_final_forearm, R_final_hand);
                      label_elbow_angle.Text = sprintf('Könyök szög: %.1f°', angle_elbow_deg);
                      label_wrist_angle.Text = sprintf('Csukló szög: %.1f°', angle_wrist_deg);
                     
