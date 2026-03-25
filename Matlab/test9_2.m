@@ -6,7 +6,7 @@
 % Utolsó ismert észrevétel:
 % Megvan a clamp az objektekre, ehhez szükség volt egy referencia szenzorra
 % ami a mellkason lesz elhelyezve.
-% Bekerül egy down
+% Bekerül egy dropdown a kar kiválasztásához
 % ------------------------------------------------------------------------------------------------------------------------------
 
 % ------------------------------------------------------------------------------------------------------------------------------
@@ -203,8 +203,9 @@ function Program()
 
     
     % ------------------------------------------------------------------------------------------------------------------------------
-    % Alaphelyzet
-    % !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+    % ------------------------------------------------------------------------------------------------------------------------------
+    % Modell alaphelyzetbe állítása
     updateArmPose(app.patch_upper_arm, app.patch_forearm, app.patch_hand, ... 
                                   app.marker_elbow, app.marker_wrist,...
                                   app.V_local_upper_arm, app.V_local_forearm, app.V_local_hand, ... 
@@ -212,7 +213,6 @@ function Program()
                                   eye(3), eye(3), eye(3), ... 
                                   app.upper_arm_fix);
     drawnow limitrate;
-    % !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     % ------------------------------------------------------------------------------------------------------------------------------
 
     % ------------------------------------------------------------------------------------------------------------------------------
@@ -257,6 +257,7 @@ function Program()
     end
 
     function setArmType(src)
+        % Leírás:
         app.isLeftArm = strcmp(src.Value, 'Bal kar');
     end
 
@@ -313,8 +314,11 @@ function Program()
             % Adatolvasás
             if app.serial.NumBytesAvailable > 0
                 try
-                    line = char(readline(app.serial));
-                    
+                    % --------------------------------------------------------------------------------------------------------------
+                    % Szenzoradatok kinyerése
+
+                    line = char(readline(app.serial));                  
+
                     % 0. szenzor - Felkar
                     if startsWith(line, '0:')
                         data = sscanf(line, '0: %f %f %f %f'); % 4 szám 
@@ -342,7 +346,9 @@ function Program()
                             R_raw_chest = quat2rotm(data') * [1, 0, 0; 0, 0, 1; 0, -1, 0]; 
                         end
                     end
-
+                    % --------------------------------------------------------------------------------------------------------------
+                    
+                    % --------------------------------------------------------------------------------------------------------------
                     % Kalibráció (T-Pose rögzítése)
                     if app.requestCalibration
                         app.R_calib_upper_arm = R_raw_upper_arm; 
@@ -353,12 +359,14 @@ function Program()
                         app.requestCalibration = false;
                         app.isCalibrated = true; 
                         
-                        label_status.Text = 'Kalibráció megtörtént (T-Pose)!';
+                        label_status.Text = 'Kalibráció megtörtént!';
                         label_status.FontColor = 'g';
                         pause(0.5);
                     end
-                    
+
+                   % --------------------------------------------------------------------------------------------------------------
                     %% Kinematika
+
                     % R_final = R_raw * R_calib'
                     R_final_upper_arm = R_raw_upper_arm * app.R_calib_upper_arm';
                     R_final_forearm = R_forearm * app.R_calib_forearm';
@@ -366,7 +374,8 @@ function Program()
                     R_final_chest = R_raw_chest * app.R_calib_chest';
                     
                     % --------------------------------------------------------------------------------------------------------------
-                    %Ízületek (Szülő' * Gyermek) + Clamp + Élő szögek lekérése
+                    % Ízületek
+                    % XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
                     R_shoulder_joint = R_final_chest' * R_final_upper_arm;
                     R_shoulder_viz = clampJointRotation('shoulder', R_shoulder_joint, app.isCalibrated, app.isLeftArm);
                     
@@ -376,17 +385,17 @@ function Program()
                     R_wrist_joint = R_final_forearm' * R_final_hand; 
                     R_wrist_viz = clampJointRotation('wrist', R_wrist_joint, app.isCalibrated, app.isLeftArm);
 
-                  
-                   angle_elbow_deg = calculateJointAngle(R_final_upper_arm, R_final_forearm);
-                   angle_wrist_deg = calculateJointAngle(R_final_forearm, R_final_hand);
-                     label_elbow_angle.Text = sprintf('Könyök szög: %.1f°', angle_elbow_deg);
-                     label_wrist_angle.Text = sprintf('Csukló szög: %.1f°', angle_wrist_deg);
+                    % Ízületi szögek meghatározása
+                    angle_elbow_deg = calculateJointAngle(R_final_upper_arm, R_final_forearm);
+                    angle_wrist_deg = calculateJointAngle(R_final_forearm, R_final_hand);
+                    label_elbow_angle.Text = sprintf('Könyök szög: %.1f°', angle_elbow_deg);
+                    label_wrist_angle.Text = sprintf('Csukló szög: %.1f°', angle_wrist_deg);
                     
                     % --------------------------------------------------------------------------------------------------------------
                     
-                    
+                    % --------------------------------------------------------------------------------------------------------------
                     % Modell frissítése
-                    % !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+                   
                     updateArmPose(app.patch_upper_arm, app.patch_forearm, app.patch_hand, ... 
                                   app.marker_elbow, app.marker_wrist,...
                                   app.V_local_upper_arm, app.V_local_forearm, app.V_local_hand, ... 
@@ -395,9 +404,8 @@ function Program()
                                   app.upper_arm_fix);
                     
                     drawnow limitrate;
-                    % !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+                    % --------------------------------------------------------------------------------------------------------------
           
-                    
                 catch errRead
                     fprintf('Beolvasási hiba: %s\n', errRead.message);
                 end
