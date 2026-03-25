@@ -2,18 +2,17 @@
 % PROGRAM: 3D mozgáskövetés 
 % SZERZŐ: Fodor Gergő 
 % DÁTUM: 2025.11.04
-% Utolsó módosítás: 2026.03.14
+% Utolsó módosítás: 2026.03.25
 % Utolsó ismert észrevétel:
-% Előfeltétel (Clamp) koordinátarendszerek:
-% Tesztből megvan 1 testre, hogy hogyan kellene megolani, a
-% koordinátarendszert. Kell 1 referencia szenzor, valamint mind a 2 szenzor leddel felfelé, valamint tetejével kifelé kell kalibrálni. 
-%Következő lépés: Korlátozás megoldása/ kiterjesztés több testre?
+% Megvan a clamp az objektekre, ehhez szükség volt egy referencia szenzorra
+% ami a mellkason lesz elhelyezve.
+% Bekerül egy down
 % ------------------------------------------------------------------------------------------------------------------------------
 
 % ------------------------------------------------------------------------------------------------------------------------------
 % Teendők: 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% Nem begfelelő baud esetén hibaüzenet (próba volt, nem jött be, ezzel még foglalkozni kell)
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% Anatómiai korlátok (szög korlátozás - clamp)  (próba volt, részben jó volt az alkar behajlítása jó lehet, de a dőlés és a csavarás még buggos) 
+% Anatómiai korlátok (szög korlátozás - clamp) - MEGVAN
 % Ízületi szögek - MEGVAN 
 % Kalibráció - MEGVAN
 % Betanító adatok

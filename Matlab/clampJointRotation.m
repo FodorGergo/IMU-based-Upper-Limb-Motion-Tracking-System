@@ -1,7 +1,6 @@
-function [R_out, main_angle] = clapJointRotation(joint_name, R_in, isCalibrated, isLeftArm)
+function R_out = clampJointRotation(joint_name, R_in, isCalibrated, isLeftArm)
     % Euler szögek kinyerése [Z, Y, X]
     eul_deg = rad2deg(rotm2eul(R_in, 'ZYX')); 
-    main_angle = 0; % Ide mentjük a kiírandó szöget
     
     switch joint_name
         case 'shoulder'
@@ -18,10 +17,6 @@ function [R_out, main_angle] = clapJointRotation(joint_name, R_in, isCalibrated,
                 modell_Y = max(min(modell_Y, 55), -190); 
                 modell_X = max(min(modell_X, 190), -65); 
             end
-
-            % !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-            main_angle = modell_X; % Váll szög 
-            % !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
             if isLeftArm
                 R_out = eul2rotm(deg2rad([-(-modell_Z), -modell_Y, modell_X]), 'ZYX');
@@ -45,10 +40,6 @@ function [R_out, main_angle] = clapJointRotation(joint_name, R_in, isCalibrated,
                 modell_X = max(min(modell_X, 95), -95);
             end
 
-            % !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-            main_angle = abs(modell_Z); % Könyök szög
-            % !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
             if isLeftArm
                 R_out = eul2rotm(deg2rad([-modell_Z, -modell_Y, -modell_X]), 'ZYX');
             else
@@ -69,10 +60,6 @@ function [R_out, main_angle] = clapJointRotation(joint_name, R_in, isCalibrated,
                 modell_Y = max(min(modell_Y, 90), -90);
                 modell_X = max(min(modell_X, 5), -5);
             end
-
-            % !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-            main_angle = modell_Y; % Csukló szög
-            % !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
             
             if isLeftArm
                 R_out = eul2rotm(deg2rad([-(-modell_Z), modell_Y, modell_X]), 'ZYX');
