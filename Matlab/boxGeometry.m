@@ -4,20 +4,20 @@
 function [V, F] = boxGeometry(dimension)
     
     % Méretei
-    size_x = dimension(1)/2;
-    size_y = dimension(2)/2;
-    size_z = dimension(3)/2;
+    lenght = dimension(1)/2;    % X tengely
+    width = dimension(2)/2;     % Y tengely
+    height = dimension(3)/2;    % Z tengely
     
     % Lokális csúcsok
     V = [
-        -size_x -size_y -size_z;
-        size_x -size_y -size_z;
-        size_x size_y -size_z;
-        -size_x size_y -size_z;
-        -size_x -size_y size_z;
-        size_x -size_y size_z;
-        size_x size_y size_z;
-        -size_x size_y size_z
+        -lenght -width -height;
+        lenght -width -height;
+        lenght width -height;
+        -lenght width -height;
+        -lenght -width height;
+        lenght -width height;
+        lenght width height;
+        -lenght width height
     ];
     
     % Oldalak
