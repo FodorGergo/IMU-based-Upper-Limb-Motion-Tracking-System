@@ -1,6 +1,3 @@
-% -------------------------------------------------------------------------
-% PROGRAM: 3D Mozgáskövetés - 4-SZENZOROS KINEMATIKAI LÁNC 
-% -------------------------------------------------------------------------
 function Test_Vall_Alkar_Kezfej()
     clearvars; close all; clc;
     app = struct(); 

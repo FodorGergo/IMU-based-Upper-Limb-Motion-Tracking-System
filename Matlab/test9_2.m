@@ -330,14 +330,14 @@ function Program()
                     elseif startsWith(line, '1:')
                         data = sscanf(line, '1: %f %f %f %f'); 
                         if length(data) == 4
-                            R_forearm = quat2rotm(data'); 
+                            R_raw_forearm = quat2rotm(data'); 
                         end
                     
                     % 2. szenzor : Kézfej
                     elseif startsWith(line, '2:')
                         data = sscanf(line, '2: %f %f %f %f'); 
                         if length(data) == 4
-                            R_hand = quat2rotm(data'); 
+                            R_raw_hand = quat2rotm(data'); 
                         end
                     % 4. szenzor: Mellkas
                     elseif startsWith(line, '4:')
@@ -369,8 +369,8 @@ function Program()
 
                     % R_final = R_raw * R_calib'
                     R_final_upper_arm = R_raw_upper_arm * app.R_calib_upper_arm';
-                    R_final_forearm = R_forearm * app.R_calib_forearm';
-                    R_final_hand = R_hand * app.R_calib_hand';
+                    R_final_forearm = R_raw_forearm * app.R_calib_forearm';
+                    R_final_hand = R_raw_hand * app.R_calib_hand';
                     R_final_chest = R_raw_chest * app.R_calib_chest';
                     
                     % --------------------------------------------------------------------------------------------------------------
