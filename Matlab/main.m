@@ -2,7 +2,7 @@
 % PROGRAM: 3D mozgáskövetés 
 % SZERZŐ: Fodor Gergő 
 % DÁTUM: 2025.11.04
-% Utolsó módosítás: 2026.03.25
+% Utolsó módosítás: 2026.04.01
 % Utolsó ismert észrevétel:
 % Megvan a clamp az objektekre, ehhez szükség volt egy referencia szenzorra
 % ami a mellkason lesz elhelyezve.
@@ -15,6 +15,7 @@
 % Anatómiai korlátok (szög korlátozás - clamp) - MEGVAN
 % Ízületi szögek - MEGVAN 
 % Kalibráció - MEGVAN
+% Mérések kimentése
 % Betanító adatok
 % Mozgásfelismerés 
 % Validáció
@@ -72,8 +73,8 @@ function Program()
     panel_display.Layout.Row = [1 2]; panel_display.Layout.Column = 2;
 
     % Beállítások
-    panel_control_grid = uigridlayout(panel_control,[10 2]);
-    panel_control_grid.RowHeight = {25, 25, 25, 25, 25, 25, 25, 25, 25, 65};
+    panel_control_grid = uigridlayout(panel_control,[11 2]);
+    panel_control_grid.RowHeight = {25, 25, 25, 25, 25, 25, 25, 25, 30, 25, 65};
     panel_control_grid.ColumnWidth = {'1x','1x'}; % A második oszlop szélesebb a beviteli mezőknek
 
     panel_feedback_grid = uigridlayout(panel_feedback,[6 2]);
@@ -155,15 +156,19 @@ function Program()
     % Kalibráció
     button_calibrate  = uibutton(panel_control_grid, 'Text', 'Kalibráció', 'Enable', 'off', 'FontWeight', 'bold');
     button_calibrate.Layout.Row = 8; button_calibrate.Layout.Column = [1 2];
-    
+    % Adatrögzítés 
+    button_record = uibutton(panel_control_grid,'Text','Felvétel', 'FontColor', 'w', 'FontWeight', 'bold', 'Enable', 'off');
+    button_record.Layout.Row = 9; button_record.Layout.Column = [1 2];
     % Kilépés
     button_exit = uibutton(panel_control_grid,'Text','Kilépés','Enable','on');
-    button_exit.Layout.Row = 9; button_exit.Layout.Column = [1 2];
+    button_exit.Layout.Row = 10; button_exit.Layout.Column = [1 2];
 
     % Állapot
     label_status = uilabel(panel_control_grid,'Text','Status: Disconnected');
-    label_status.Layout.Row = 10; label_status.Layout.Column = [1 2];
-
+    label_status.Layout.Row = 11; label_status.Layout.Column = [1 2];
+    label_record_status = uilabel(panel_feedback_grid, 'Text', 'Adatok rögzítése: KI', 'FontColor', 'r','HorizontalAlignment','left');
+    label_record_status.Layout.Row = 4; label_record_status.Layout.Column = [1 2];
+    
     %% Visszajelzés
     % Mozgásforma
     label_movement_type = uilabel(panel_feedback_grid,'Text','Mozgásforma:','HorizontalAlignment','left');
@@ -226,10 +231,14 @@ function Program()
     % Kalibrációs kérés jelzése
     app.requestCalibration = false;
     app.isCalibrated = false;
+    app.isRecording = false;
     
+    app.loggedData = []; % Rögzített adatok 
     % ------------------------------------------------------------------------------------------------------------------------------
     % Callback-ek
     dropdown_mode.ValueChangedFcn = @(src,event) switchMode(src,panel_control_grid);    
+    dropdown_arm.ValueChangedFcn = @(src,event) setArmType(src);
+
     button_refresh.ButtonPushedFcn = @(src,event) refreshSettings();                    
     button_exit.ButtonPushedFcn = @(src,event) exitProgram();                          
     button_connect.ButtonPushedFcn = @(src,event) connectSerial();                      
@@ -237,7 +246,7 @@ function Program()
     button_start.ButtonPushedFcn = @(src,event) startProgram();                            
     button_stop.ButtonPushedFcn = @(src,event) stopProgram();                              
     button_calibrate.ButtonPushedFcn  = @(src,event) Calibration();
-    dropdown_arm.ValueChangedFcn = @(src,event) setArmType(src);
+    button_record.ButtonPushedFcn = @(src,event) Recording();
     
     % ------------------------------------------------------------------------------------------------------------------------------
  
@@ -296,6 +305,7 @@ function Program()
         button_stop.Enable = 'on';
         button_disconnect.Enable = 'off';
         button_calibrate.Enable = 'on';
+        button_record.Enable = 'on';
 
         label_status.Text = 'Adatok fogadása...';
         label_status.FontColor = [0 0.8 0];
@@ -305,9 +315,15 @@ function Program()
         R_raw_upper_arm = eye(3);
         R_raw_forearm = eye(3);
         R_raw_hand = eye(3);
+        
+        % Flagek
+        got_upper_arm = false;
+        got_forearm = false;
+        got_hand = false;
+        got_chest = false;
 
         while app.run
-            if ~isvalid(app.figure), 
+            if ~isvalid(app.figure) 
                 break; 
             end
 
@@ -324,88 +340,123 @@ function Program()
                         data = sscanf(line, '0: %f %f %f %f'); % 4 szám 
                         if length(data) == 4
                             R_raw_upper_arm = quat2rotm(data');
+                            got_upper_arm = true;
                         end
                     
                     % 1. szenzor - Alkar
                     elseif startsWith(line, '1:')
                         data = sscanf(line, '1: %f %f %f %f'); 
                         if length(data) == 4
-                            R_raw_forearm = quat2rotm(data'); 
+                            R_raw_forearm = quat2rotm(data');
+                            got_forearm = true;
                         end
                     
                     % 2. szenzor : Kézfej
                     elseif startsWith(line, '2:')
                         data = sscanf(line, '2: %f %f %f %f'); 
                         if length(data) == 4
-                            R_raw_hand = quat2rotm(data'); 
+                            R_raw_hand = quat2rotm(data');
+                            got_hand = true;
                         end
                     % 4. szenzor: Mellkas
                     elseif startsWith(line, '4:')
                         data = sscanf(line, '4: %f %f %f %f'); 
                         if length(data) == 4
-                            R_raw_chest = quat2rotm(data') * [1, 0, 0; 0, 0, 1; 0, -1, 0]; 
+                            R_raw_chest = quat2rotm(data') * [1, 0, 0; 0, 0, 1; 0, -1, 0];
+                            got_chest = true;
                         end
                     end
                     % --------------------------------------------------------------------------------------------------------------
                     
                     % --------------------------------------------------------------------------------------------------------------
-                    % Kalibráció (T-Pose rögzítése)
-                    if app.requestCalibration
-                        app.R_calib_upper_arm = R_raw_upper_arm; 
-                        app.R_calib_forearm = R_raw_forearm; 
-                        app.R_calib_hand = R_raw_hand; 
-                        app.R_calib_chest = R_raw_chest;
-
-                        app.requestCalibration = false;
-                        app.isCalibrated = true; 
+                    % xxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+                    if got_upper_arm && got_forearm && got_hand && got_chest
+                        % --------------------------------------------------------------------------------------------------------------
+                        % Kalibráció (T-Pose rögzítése)
+                        if app.requestCalibration
+                            app.R_calib_upper_arm = R_raw_upper_arm; 
+                            app.R_calib_forearm = R_raw_forearm; 
+                            app.R_calib_hand = R_raw_hand; 
+                            app.R_calib_chest = R_raw_chest;
+    
+                            app.requestCalibration = false;
+                            app.isCalibrated = true; 
+                            
+                            label_status.Text = 'Kalibráció megtörtént!';
+                            label_status.FontColor = 'g';
+                            pause(0.5);
+                        end
+    
+                       % --------------------------------------------------------------------------------------------------------------
+                       %% Kinematika
+    
+                       % R_final = R_raw * R_calib'
+                       R_final_upper_arm = R_raw_upper_arm * app.R_calib_upper_arm';
+                       R_final_forearm = R_raw_forearm * app.R_calib_forearm';
+                       R_final_hand = R_raw_hand * app.R_calib_hand';
+                       R_final_chest = R_raw_chest * app.R_calib_chest';
                         
-                        label_status.Text = 'Kalibráció megtörtént!';
-                        label_status.FontColor = 'g';
-                        pause(0.5);
+                       % --------------------------------------------------------------------------------------------------------------
+                       % Ízületek
+                       % XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+                       R_shoulder_joint = R_final_chest' * R_final_upper_arm;
+                       R_shoulder_viz = clampJointRotation('shoulder', R_shoulder_joint, app.isCalibrated, app.isLeftArm);
+                       
+                       R_elbow_joint = R_final_upper_arm' * R_final_forearm; 
+                       R_elbow_viz = clampJointRotation('elbow', R_elbow_joint, app.isCalibrated, app.isLeftArm); 
+                       
+                       R_wrist_joint = R_final_forearm' * R_final_hand; 
+                       R_wrist_viz = clampJointRotation('wrist', R_wrist_joint, app.isCalibrated, app.isLeftArm);
+   
+                       % Ízületi szögek meghatározása
+                       angle_elbow_deg = calculateJointAngle(R_final_upper_arm, R_final_forearm);
+                       angle_wrist_deg = calculateJointAngle(R_final_forearm, R_final_hand);
+                       label_elbow_angle.Text = sprintf('Könyök szög: %.1f°', angle_elbow_deg);
+                       label_wrist_angle.Text = sprintf('Csukló szög: %.1f°', angle_wrist_deg);
+                        
+                       % --------------------------------------------------------------------------------------------------------------
+                        
+                       % --------------------------------------------------------------------------------------------------------------
+                       % Modell frissítése
+                       
+                       updateArmPose(app.patch_upper_arm, app.patch_forearm, app.patch_hand, ... 
+                                     app.marker_elbow, app.marker_wrist,...
+                                     app.V_local_upper_arm, app.V_local_forearm, app.V_local_hand, ... 
+                                     app.size_upper_arm, app.size_forearm, app.size_hand, ... 
+                                     R_shoulder_viz, R_elbow_viz, R_wrist_viz, ... 
+                                     app.upper_arm_fix);
+                       % --------------------------------------------------------------------------------------------------------------
+    
+                       % --------------------------------------------------------------------------------------------------------------
+                       % Adatok rögzítése
+                       if app.isRecording
+                           currentTime = toc(app.recordStartTime); 
+                            
+                           % Euler szögek
+                           eul_upper_arm = rad2deg(rotm2eul(R_final_upper_arm, 'XYZ'));
+                           eul_forearm = rad2deg(rotm2eul(R_final_forearm, 'XYZ'));
+                           eul_hand  = rad2deg(rotm2eul(R_final_hand, 'XYZ'));
+                            
+                           % Egy sornyi adat összeállítása
+                           newRow = [currentTime, eul_upper_arm(1), eul_upper_arm(2), eul_upper_arm(3), ...
+                                                  eul_forearm(1), eul_forearm(2), eul_forearm(3), ...
+                                                  eul_hand(1),  eul_hand(2),  eul_hand(3), ...
+                                                  angle_elbow_deg, angle_wrist_deg];
+                                                   
+                           app.loggedData = [app.loggedData; newRow]; 
+                       end
+                       % --------------------------------------------------------------------------------------------------------------
+                       
+                       drawnow limitrate;
+                       
+                       got_upper_arm = false;
+                       got_forearm = false;
+                       got_hand = false;
+                       got_chest = false;
+
                     end
-
-                   % --------------------------------------------------------------------------------------------------------------
-                    %% Kinematika
-
-                    % R_final = R_raw * R_calib'
-                    R_final_upper_arm = R_raw_upper_arm * app.R_calib_upper_arm';
-                    R_final_forearm = R_raw_forearm * app.R_calib_forearm';
-                    R_final_hand = R_raw_hand * app.R_calib_hand';
-                    R_final_chest = R_raw_chest * app.R_calib_chest';
-                    
                     % --------------------------------------------------------------------------------------------------------------
-                    % Ízületek
-                    % XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-                    R_shoulder_joint = R_final_chest' * R_final_upper_arm;
-                    R_shoulder_viz = clampJointRotation('shoulder', R_shoulder_joint, app.isCalibrated, app.isLeftArm);
-                    
-                    R_elbow_joint = R_final_upper_arm' * R_final_forearm; 
-                    R_elbow_viz = clampJointRotation('elbow', R_elbow_joint, app.isCalibrated, app.isLeftArm); 
-                    
-                    R_wrist_joint = R_final_forearm' * R_final_hand; 
-                    R_wrist_viz = clampJointRotation('wrist', R_wrist_joint, app.isCalibrated, app.isLeftArm);
-
-                    % Ízületi szögek meghatározása
-                    angle_elbow_deg = calculateJointAngle(R_final_upper_arm, R_final_forearm);
-                    angle_wrist_deg = calculateJointAngle(R_final_forearm, R_final_hand);
-                    label_elbow_angle.Text = sprintf('Könyök szög: %.1f°', angle_elbow_deg);
-                    label_wrist_angle.Text = sprintf('Csukló szög: %.1f°', angle_wrist_deg);
-                    
-                    % --------------------------------------------------------------------------------------------------------------
-                    
-                    % --------------------------------------------------------------------------------------------------------------
-                    % Modell frissítése
-                   
-                    updateArmPose(app.patch_upper_arm, app.patch_forearm, app.patch_hand, ... 
-                                  app.marker_elbow, app.marker_wrist,...
-                                  app.V_local_upper_arm, app.V_local_forearm, app.V_local_hand, ... 
-                                  app.size_upper_arm, app.size_forearm, app.size_hand, ... 
-                                  R_shoulder_viz, R_elbow_viz, R_wrist_viz, ... 
-                                  app.upper_arm_fix);
-                    
-                    drawnow limitrate;
-                    % --------------------------------------------------------------------------------------------------------------
-          
+                
                 catch errRead
                     fprintf('Beolvasási hiba: %s\n', errRead.message);
                 end
@@ -424,6 +475,7 @@ function Program()
         button_start.Enable = 'on';
         button_stop.Enable = 'off';
         button_disconnect.Enable = 'on';
+        button_record.Enable = 'on';
         label_status.Text = "Mérés leállítva.";
     end
 
@@ -452,6 +504,35 @@ function Program()
         % Elindít egy kalibrációt
         app.requestCalibration = true;
         label_status.Text = "Kalibrálás folyamatban...";
+    end
+    
+    function Recording()
+        % Leírás:
+        %
+        if ~app.isRecording
+            app.isRecording = true;
+            app.loggedData = []; % Memória törlése
+            app.recordStartTime = tic; % Időzítő indítása
+                
+            button_record.Text = 'FELVÉTEL LEÁLLÍTÁSA';
+            label_record_status.Text = 'ADATOK RÖGZÍTÉSE FOLYAMATBAN...';
+            label_record_status.FontColor = [0 0.8 0];
+        else
+            app.isRecording = false;
+                
+            button_record.Text = 'FELVÉTEL INDÍTÁSA';
+            label_record_status.Text = 'ADATOK ELMENTVE';
+            label_record_status.FontColor = 'g';
+                
+            % Fájlba írás
+            if ~isempty(app.loggedData)
+                header = {'Ido_mp', 'UA_X', 'UA_Y', 'UA_Z', 'FA_X', 'FA_Y', 'FA_Z', 'H_X', 'H_Y', 'H_Z', 'Elbow_A', 'Wrist_A'};
+                T = array2table(app.loggedData, 'VariableNames', header);
+                filename = 'Meresi_Adatok.csv';
+                writetable(T, filename);
+                label_status.Text = "Adatok sikeresen mentve: " + filename;
+            end
+        end
     end
 
     function exitProgram()
