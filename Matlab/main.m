@@ -145,6 +145,7 @@ function Program()
     dropdown_arm = uidropdown(panel_control_grid, 'Items', {'Jobb kar', 'Bal kar'}, 'Value', 'Jobb kar');
     dropdown_arm.Layout.Row = 6; dropdown_arm.Layout.Column = 2;
     app.isLeftArm = false; % Alapértelmezés (Jobb)
+    
     % Indítás
     button_start = uibutton(panel_control_grid,'Text','Indítás','Enable','off');
     button_start.Layout.Row = 7; button_start.Layout.Column = 1;
@@ -433,9 +434,9 @@ function Program()
                            currentTime = toc(app.recordStartTime); 
                             
                            % Euler szögek
-                           eul_upper_arm = rad2deg(rotm2eul(R_final_upper_arm, 'XYZ'));
-                           eul_forearm = rad2deg(rotm2eul(R_final_forearm, 'XYZ'));
-                           eul_hand  = rad2deg(rotm2eul(R_final_hand, 'XYZ'));
+                           eul_upper_arm = rad2deg(rotm2eul(R_final_upper_arm, 'ZYX'));
+                           eul_forearm = rad2deg(rotm2eul(R_final_forearm, 'ZYX'));
+                           eul_hand  = rad2deg(rotm2eul(R_final_hand, 'ZYX'));
                             
                            % Egy sornyi adat összeállítása
                            newRow = [currentTime, eul_upper_arm(1), eul_upper_arm(2), eul_upper_arm(3), ...
