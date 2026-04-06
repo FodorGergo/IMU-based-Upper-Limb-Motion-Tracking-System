@@ -317,11 +317,8 @@ function Program()
         R_raw_forearm = eye(3);
         R_raw_hand = eye(3);
         
-        % Flagek
-        got_upper_arm = false;
-        got_forearm = false;
-        got_hand = false;
-        got_chest = false;
+        % Flag
+        got_all = 0;
 
         while app.run
             if ~isvalid(app.figure) 
@@ -333,7 +330,6 @@ function Program()
                 try
                     % --------------------------------------------------------------------------------------------------------------
                     % Szenzoradatok kinyerése
-
                     line = char(readline(app.serial));                  
 
                     % 0. szenzor - Felkar
@@ -341,7 +337,7 @@ function Program()
                         data = sscanf(line, '0: %f %f %f %f'); % 4 szám 
                         if length(data) == 4
                             R_raw_upper_arm = quat2rotm(data');
-                            got_upper_arm = true;
+                            got_all = got_all + 1;
                         end
                     
                     % 1. szenzor - Alkar
@@ -349,7 +345,7 @@ function Program()
                         data = sscanf(line, '1: %f %f %f %f'); 
                         if length(data) == 4
                             R_raw_forearm = quat2rotm(data');
-                            got_forearm = true;
+                            got_all = got_all + 1;
                         end
                     
                     % 2. szenzor : Kézfej
@@ -357,21 +353,21 @@ function Program()
                         data = sscanf(line, '2: %f %f %f %f'); 
                         if length(data) == 4
                             R_raw_hand = quat2rotm(data');
-                            got_hand = true;
+                            got_all = got_all + 1;
                         end
                     % 4. szenzor: Mellkas
                     elseif startsWith(line, '4:')
                         data = sscanf(line, '4: %f %f %f %f'); 
                         if length(data) == 4
                             R_raw_chest = quat2rotm(data') * [1, 0, 0; 0, 0, 1; 0, -1, 0];
-                            got_chest = true;
+                            got_all = got_all + 1;
                         end
                     end
                     % --------------------------------------------------------------------------------------------------------------
                     
                     % --------------------------------------------------------------------------------------------------------------
                     % xxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-                    if got_upper_arm && got_forearm && got_hand && got_chest
+                    if got_all == 4
                         % --------------------------------------------------------------------------------------------------------------
                         % Kalibráció (T-Pose rögzítése)
                         if app.requestCalibration
@@ -434,9 +430,9 @@ function Program()
                            currentTime = toc(app.recordStartTime); 
                             
                            % Euler szögek
-                           eul_upper_arm = rad2deg(rotm2eul(R_final_upper_arm, 'ZYX'));
-                           eul_forearm = rad2deg(rotm2eul(R_final_forearm, 'ZYX'));
-                           eul_hand  = rad2deg(rotm2eul(R_final_hand, 'ZYX'));
+                           eul_upper_arm = rad2deg(rotm2eul(R_shoulder_joint, 'ZYX'));
+                           eul_forearm = rad2deg(rotm2eul(R_elbow_joint, 'ZYX'));
+                           eul_hand  = rad2deg(rotm2eul(R_wrist_joint, 'ZYX'));
                             
                            % Egy sornyi adat összeállítása
                            newRow = [currentTime, eul_upper_arm(1), eul_upper_arm(2), eul_upper_arm(3), ...
@@ -450,11 +446,10 @@ function Program()
                        
                        drawnow limitrate;
                        
-                       got_upper_arm = false;
-                       got_forearm = false;
-                       got_hand = false;
-                       got_chest = false;
-
+                       got_all = 0;
+                        
+                       flush(app.serial, "input");
+                        
                     end
                     % --------------------------------------------------------------------------------------------------------------
                 

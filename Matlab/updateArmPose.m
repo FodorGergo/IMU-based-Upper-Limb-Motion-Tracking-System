@@ -36,6 +36,4 @@ function updateArmPose( ...
     % Markerek
     set(marker_elbow, 'XData', elbow_pos(1), 'YData', elbow_pos(2), 'ZData', elbow_pos(3));
     set(marker_wrist, 'XData', wrist_pos(1), 'YData', wrist_pos(2), 'ZData', wrist_pos(3));
-
-    drawnow limitrate;
 end

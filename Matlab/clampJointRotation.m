@@ -38,6 +38,6 @@ function R_out = clampJointRotation(joint_name, R_in, isCalibrated, isLeftArm)
         modell_Z = -modell_Z;
     end
     
-    R_out = eul2rotm(deg2rad([-modell_Z, -modell_Y, -modell_X]), 'ZYX');
+    R_out = eul2rotm(deg2rad([-modell_Z, modell_Y, modell_X]), 'ZYX');
 end
 
