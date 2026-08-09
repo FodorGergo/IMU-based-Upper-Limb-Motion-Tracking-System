@@ -1,549 +1,493 @@
 % ------------------------------------------------------------------------------------------------------------------------------
-% PROGRAM: 3D mozgáskövetés 
-% SZERZŐ: Fodor Gergő 
+% PROGRAM: 3D mozgáskövetés
+% SZERZŐ: Fodor Gergő
 % DÁTUM: 2025.11.04
-% Utolsó módosítás: 2026.04.01
-% Utolsó ismert észrevétel:
-% Megvan a clamp az objektekre, ehhez szükség volt egy referencia szenzorra
-% ami a mellkason lesz elhelyezve.
-% Bekerül egy dropdown a kar kiválasztásához
 % ------------------------------------------------------------------------------------------------------------------------------
 
-% ------------------------------------------------------------------------------------------------------------------------------
-% Teendők: 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% Nem begfelelő baud esetén hibaüzenet (próba volt, nem jött be, ezzel még foglalkozni kell)
-% Anatómiai korlátok (szög korlátozás - clamp) - MEGVAN
-% Ízületi szögek - MEGVAN 
-% Kalibráció - MEGVAN
-% Mérések kimentése
-% Betanító adatok
-% Mozgásfelismerés 
-% Validáció
-%%%%%%%%%%%%%%%%%%%%%%% Akadozás megszüntetés (mondhatni megvan)   
-% ------------------------------------------------------------------------------------------------------------------------------
+function Main_GUI()
+clearvars; close all; clc;
+app = struct();
+app.run = false;
+
+% Főablak (GUI)
+app.figure = uifigure('Name','3D Mozgáskövetés','Position', [0 50 1920 787]);
+app.figure.CloseRequestFcn = @(~,~) exitProgram(); % Ablakbezárással a program is leáll
+
+% GUI elrendezés
+grids = uigridlayout(app.figure,[2 2]); %2x2 felosztás
+grids.ColumnWidth = {320,'1x'};         % Oszlop elrendezés (fix - flex)
+grids.RowHeight = {'2x', '1x'};         % Sor magassága (flex - flex)
 
 % ------------------------------------------------------------------------------------------------------------------------------
-%% Külső függvények
-% switchMode() - Soros / Wifi mód váltogatás
-% initialSerial() - Soros kapcsolaat inicializálása
-% boxGeometry() - Testek megalkotása
-% updateArmPose() - Kar mozgásának frissítése
-% clampJointRotation()  - Szögtartomány beállítása
-% calculateJointAngle() - Ízületi szögek meghatározása
-% ------------------------------------------------------------------------------------------------------------------------------
+% Panelek
+panel_control = uipanel(grids,'Title','Vezérlés','TitlePosition','centertop');
+panel_control.Layout.Row = 1; panel_control.Layout.Column = 1;
+panel_feedback = uipanel(grids,'Title','Visszajelzés','TitlePosition','centertop');
+panel_feedback.Layout.Row = 2; panel_feedback.Layout.Column = 1;
+panel_display = uipanel(grids,'Title','3D Mozgáskövetés');
+panel_display.Layout.Row = [1 2]; panel_display.Layout.Column = 2;
+
+panel_control_grid = uigridlayout(panel_control,[12 2]);
+panel_control_grid.RowHeight = {25, 25, 25, 25, 25, 25, 25, 25, 25, 90, 'fit','fit'};
+panel_control_grid.ColumnWidth = {'1x','1x'};
+
+panel_feedback_grid = uigridlayout(panel_feedback,[8 2]);
+panel_feedback_grid.RowHeight = {18, 18, 18, 18, 18, 18, 18, 18};
+panel_feedback_grid.RowSpacing = 2;
+panel_feedback_grid.Padding = [5 5 5 5];
+panel_feedback_grid.ColumnWidth = {'fit', '1x'};
+
+grid_display = uigridlayout(panel_display, [1 1]);
+model_ax = uiaxes(grid_display);
+axis(model_ax,'equal'); grid(model_ax,'on'); hold(model_ax,'on');
+xlabel(model_ax,'X (Hossz)'); ylabel(model_ax,'Y (Szélesség)'); zlabel(model_ax,'Z (Magasság)');
+view(model_ax,3);                                                                   % 3D megjelenítés
+xlim(model_ax,[-100 100]); ylim(model_ax,[-100 100]); zlim(model_ax,[-100 100]);    % Koordinátarendszer thresholdok
 
 % ------------------------------------------------------------------------------------------------------------------------------
-%% Lokális függvények
-% refreshSettings() - Beállítások frissítése 
-% connectSerial() - Kapcsolat létrehozása
-% startProgram() - Futtatás
-% stopProgram() - Megállítás
-% disconnectSerial() - Kapcsolat megszűntetése
-% Calibration() - Kalibráció
-% exitProgram() - Kilépés
+%% Vezérlés
+% Kapcsolat választó
+uilabel(panel_control_grid,'Text','Kapcsolat:','HorizontalAlignment','right');
+dropdown_connection_mode = uidropdown(panel_control_grid, 'Items', {'Soros port', 'Wifi'},'Value', 'Soros port');
+
+% Soros kapcsolat
+label_serial_port = uilabel(panel_control_grid,'Text','Soros port szám: (COM):','HorizontalAlignment','right');
+label_serial_port.Layout.Row = 2; label_serial_port.Layout.Column = 1;
+port = uieditfield(panel_control_grid, 'numeric', 'Value', 3);
+port.Layout.Row = 2; port.Layout.Column = 2;
+
+label_baud = uilabel(panel_control_grid,'Text','Baud:','HorizontalAlignment','right');
+label_baud.Layout.Row = 3; label_baud.Layout.Column = 1;
+baud = uidropdown(panel_control_grid,'Items',{'115200','230400','460800'},'Value','115200');
+baud.Layout.Row = 3; baud.Layout.Column = 2;
+
+% Wi-Fi kapcsolat
+label_wifi_port = uilabel(panel_control_grid,'Text','Port:','HorizontalAlignment','right', 'Visible','off');
+label_wifi_port.Layout.Row = 2; label_wifi_port.Layout.Column = 1;
+wifi_port = uieditfield(panel_control_grid, 'numeric', 'Value', 8080, 'Visible','off');
+wifi_port.Layout.Row = 2; wifi_port.Layout.Column = 2;
+
+% Kapcsolat
+button_connection = uibutton(panel_control_grid,'Text','Csatlakozás');
+button_connection.Layout.Row = 5; button_connection.Layout.Column = [1 2];
+
+% Kar választás
+label_arm = uilabel(panel_control_grid,'Text','Megjelenített Adat:','HorizontalAlignment','right');
+label_arm.Layout.Row = 4; label_arm.Layout.Column = 1;
+dropdown_arm = uidropdown(panel_control_grid, 'Items', {'Mindkettő', 'Jobb kar', 'Bal kar'}, 'Value', 'Mindkettő');
+dropdown_arm.Layout.Row = 4; dropdown_arm.Layout.Column = 2;
+
+% Start/Stop
+button_control = uibutton(panel_control_grid,'Text','Indítás','Enable','off');
+button_control.Layout.Row = 6; button_control.Layout.Column = [1 2];
+
+% Kalibráció
+button_calibrate  = uibutton(panel_control_grid, 'Text', 'Kalibráció', 'Enable', 'off', 'FontWeight', 'bold');
+button_calibrate.Layout.Row = 7; button_calibrate.Layout.Column = [1 2];
+
+% Adatrögzítés
+button_record = uibutton(panel_control_grid,'Text','Adatok rögzítése: KI', 'FontColor', 'w', 'FontWeight', 'bold', 'Enable', 'off');
+button_record.Layout.Row = 8; button_record.Layout.Column = [1 2];
+app.isRecording = false;
+app.loggedData = [];
+app.logIndex = 0;
+
+% Bezárás
+button_exit = uibutton(panel_control_grid,'Text','Kilépés');
+button_exit.Layout.Row = 9; button_exit.Layout.Column = [1 2];
+
+% Állapot
+label_status = uilabel(panel_control_grid,'Text','Állapot: Lecsatlakozva', 'VerticalAlignment', 'top');
+label_status.Layout.Row = 10; label_status.Layout.Column = [1 2];
+
+% Fejlesztői adatok megjelenítése
+checkbox_dev = uicheckbox(panel_control_grid, 'Text', 'Fejlesztői adatok megjelenítése', 'Value', 0);
+checkbox_dev.Layout.Row = 11; checkbox_dev.Layout.Column = [1 2];
+checkbox_dev.ValueChangedFcn = @(src,event) showDevMode(src);
+
+% Gyakolat megjelenítésa
+checkbox_guided = uicheckbox(panel_control_grid, 'Text', 'Gyakorló mód', 'Value', 0);
+checkbox_guided.Layout.Row = 12; checkbox_guided.Layout.Column = [1 2];
+checkbox_guided.ValueChangedFcn = @(src,event) showGuidedMode(src);
+% ------------------------------------------------------------------------------------------------------------------------------
+%% Visszajelzés
+% Fejlesztői adatok - Jobb kar (Piros)
+label_right_angle = uilabel(panel_feedback_grid, 'Text', sprintf('Jobb kar'), 'HorizontalAlignment', 'left', 'Visible', 'off', 'FontColor', 'r');
+label_right_angle.Layout.Row = 1; label_right_angle.Layout.Column = [1 2];
+label_right_shoulder_angle = uilabel(panel_feedback_grid, 'Text', sprintf('Váll:[Csavarás: 0° | Emelés: 0° | Forgatás: 0°]'), 'HorizontalAlignment', 'left', 'Visible', 'off', 'FontColor', 'r');
+label_right_shoulder_angle.Layout.Row = 2; label_right_shoulder_angle.Layout.Column = [1 2];
+label_right_elbow_angle = uilabel(panel_feedback_grid, 'Text', sprintf('Könyök:[Csavarás: 0° | Emelés: 0° | Forgatás: 0°]'), 'HorizontalAlignment', 'left', 'Visible', 'off', 'FontColor', 'r');
+label_right_elbow_angle.Layout.Row = 3; label_right_elbow_angle.Layout.Column = [1 2];
+label_right_wrist_angle = uilabel(panel_feedback_grid, 'Text', sprintf('Csukló:[Csavarás: 0° | Emelés: 0° | Forgatás: 0°]'), 'HorizontalAlignment', 'left', 'Visible', 'off', 'FontColor', 'r');
+label_right_wrist_angle.Layout.Row = 4; label_right_wrist_angle.Layout.Column = [1 2];
+
+% Fejlesztői adatok - Bal kar (Kék)
+label_left_angle = uilabel(panel_feedback_grid, 'Text', sprintf('Bal kar'), 'HorizontalAlignment', 'left', 'Visible', 'off', 'FontColor', 'r');
+label_left_angle.Layout.Row = 5; label_left_angle.Layout.Column = [1 2];
+label_left_shoulder_angle = uilabel(panel_feedback_grid, 'Text', sprintf('Váll:[Csavarás: 0° | Emelés: 0° | Forgatás: 0°]'), 'HorizontalAlignment', 'left', 'Visible', 'off', 'FontColor', 'r');
+label_left_shoulder_angle.Layout.Row = 6; label_left_shoulder_angle.Layout.Column = [1 2];
+label_left_elbow_angle = uilabel(panel_feedback_grid, 'Text', sprintf('Könyök:[Csavarás: 0° | Emelés: 0° | Forgatás: 0°]'), 'HorizontalAlignment', 'left', 'Visible', 'off', 'FontColor', 'r');
+label_left_elbow_angle.Layout.Row = 7; label_left_elbow_angle.Layout.Column = [1 2];
+label_left_wrist_angle = uilabel(panel_feedback_grid, 'Text', sprintf('Csukló:[Csavarás: 0° | Emelés: 0° | Forgatás: 0°]'), 'HorizontalAlignment', 'left', 'Visible', 'off', 'FontColor', 'r');
+label_left_wrist_angle.Layout.Row = 8; label_left_wrist_angle.Layout.Column = [1 2];
+
+% Gyakorló mód (Nagyobb prioritású elemek, ugyanazokra a sorokra illesztve)
+label_exercise_title = uilabel(panel_feedback_grid, 'Text', 'Aktuális gyakorlat:', 'FontWeight', 'bold', 'Visible', 'off');
+label_exercise_title.Layout.Row = 1; label_exercise_title.Layout.Column = 1;
+dropdown_exercise = uidropdown(panel_feedback_grid, ...
+    'Items', {'1. Gyakorlat', '2. Gyakorlat', '3. Gyakorlat', '4. Gyakorlat', '5. Gyakorlat'}, ...
+    'Value', '1. Gyakorlat', 'Visible','off');
+dropdown_exercise.Layout.Row = 1; dropdown_exercise.Layout.Column = 2;
+dropdown_exercise.ValueChangedFcn = @(src,event) changeExercise(src);
+gif_display = uiimage(panel_feedback_grid, 'ImageSource', 'bicepsz.gif', 'ScaleMethod', 'fit', 'Visible','off');
+gif_display.Layout.Row = [2 4]; gif_display.Layout.Column = [1 2];
+label_movement_type = uilabel(panel_feedback_grid,'Text','Mozgásforma:','HorizontalAlignment','left');
+label_movement_type.Layout.Row = 5; label_movement_type.Layout.Column = [1 2];
 
 % ------------------------------------------------------------------------------------------------------------------------------
+%% 3D Modellek
+sizes.upper_arm = [30 10 10];
+sizes.forearm  = [30 10 10];
+sizes.hand  = [10 10 10];
 
-function Program()
+% Jobb kar
+patch_upper_arm_R   = patch(model_ax, 'Vertices', [], 'Faces', [1 2 3 4; 5 6 7 8; 1 2 6 5; 2 3 7 6; 3 4 8 7; 4 1 5 8], 'FaceColor', 'r', 'FaceAlpha', 0.6);
+patch_forearm_R = patch(model_ax, 'Vertices', [], 'Faces', [1 2 3 4; 5 6 7 8; 1 2 6 5; 2 3 7 6; 3 4 8 7; 4 1 5 8], 'FaceColor', 'g', 'FaceAlpha', 0.6);
+patch_hand_R = patch(model_ax, 'Vertices', [], 'Faces', [1 2 3 4; 5 6 7 8; 1 2 6 5; 2 3 7 6; 3 4 8 7; 4 1 5 8], 'FaceColor', 'b', 'FaceAlpha', 0.6);
 
-    clearvars; close all; clc;
-    app = struct(); % Központi adattároló struktúra
-    
-    
-    %% Főablak (GUI)
-    app.figure = uifigure('Name','3D Mozgáskövetés','Position', [0 50 1920 787]);
-    app.figure.CloseRequestFcn = @(~,~) exitProgram(); %%% Ablakbezárással a program is leáll
 
-    %% GUI elrendezés
-    grids = uigridlayout(app.figure,[2 2]); %2x2 felosztás
-    grids.ColumnWidth = {320,'1x'};         % Oszlop elrendezés (fix - flex)
-    grids.RowHeight = {'2x', '1x'};         % Sor magassága (flex - flex)
-    
-    % ------------------------------------------------------------------------------------------------------------------------------
-    %%% GUI felépítése
-    %% Panelek
-    % Létrehozás
-    panel_control = uipanel(grids,'Title','Vezérlés','TitlePosition','centertop');
-    panel_control.Layout.Row = 1; panel_control.Layout.Column = 1;
+% Bal kar Patchek
+patch_upper_arm_L   = patch(model_ax, 'Vertices', [], 'Faces', [1 2 3 4; 5 6 7 8; 1 2 6 5; 2 3 7 6; 3 4 8 7; 4 1 5 8], 'FaceColor', 'r', 'FaceAlpha', 0.6);
+patch_forearm_L = patch(model_ax, 'Vertices', [], 'Faces', [1 2 3 4; 5 6 7 8; 1 2 6 5; 2 3 7 6; 3 4 8 7; 4 1 5 8], 'FaceColor', 'g', 'FaceAlpha', 0.6);
+patch_hand_L = patch(model_ax, 'Vertices', [], 'Faces', [1 2 3 4; 5 6 7 8; 1 2 6 5; 2 3 7 6; 3 4 8 7; 4 1 5 8], 'FaceColor', 'b', 'FaceAlpha', 0.6);
 
-    panel_feedback = uipanel(grids,'Title','Visszajelzés','TitlePosition','centertop');
-    panel_feedback.Layout.Row = 2; panel_feedback.Layout.Column = 1;
 
-    panel_display = uipanel(grids,'Title','3D Mozgáskövetés');
-    panel_display.Layout.Row = [1 2]; panel_display.Layout.Column = 2;
+origin_L = [0, -25, 30]; % Bal kar a képernyő BAL oldalára (Y = -25)
+origin_R = [0,  25, 30]; % Jobb kar a képernyő JOBB oldalára (Y = +25)
 
-    % Beállítások
-    panel_control_grid = uigridlayout(panel_control,[11 2]);
-    panel_control_grid.RowHeight = {25, 25, 25, 25, 25, 25, 25, 25, 30, 25, 65};
-    panel_control_grid.ColumnWidth = {'1x','1x'}; % A második oszlop szélesebb a beviteli mezőknek
+% Modell alaphelyzetbe állítása
+app.arm_right = armModel(patch_upper_arm_R, patch_forearm_R, patch_hand_R, sizes, origin_R, false);
+app.arm_left  = armModel(patch_upper_arm_L, patch_forearm_L, patch_hand_L, sizes, origin_L, true);
 
-    panel_feedback_grid = uigridlayout(panel_feedback,[6 2]);
-    
-    grid_display = uigridlayout(panel_display, [1 1]);
-    model_ax = uiaxes(grid_display);
-    axis(model_ax,'equal'); grid(model_ax,'on'); hold(model_ax,'on');
-    xlabel(model_ax,'X'); ylabel(model_ax,'Y'); zlabel(model_ax,'Z');
-    view(model_ax,3);                                                                   % 3D megjelenítés
-    xlim(model_ax,[-100 100]); ylim(model_ax,[-100 100]); zlim(model_ax,[-100 100]);    % Koordinátarendszer thresholdok
-    
-    % ------------------------------------------------------------------------------------------------------------------------------
-    
-    % ------------------------------------------------------------------------------------------------------------------------------
-    %%% I/O komponensek
+% ------------------------------------------------------------------------------------------------------------------------------
+%% Kalibráció
+app.R_raw_chest = eye(3);
+app.R_calib_chest = eye(3);
+app.isCalibrated = false;
+app.requestCalibration = false;
 
-    %% Kapcsolat választó
-    uilabel(panel_control_grid,'Text','Kapcsolat:','HorizontalAlignment','right');
-    dropdown_mode = uidropdown(panel_control_grid, 'Items', {'Soros port', 'Wifi'},'Value', 'Soros port');
-    
-    %% Soros kapcsolat
-    % Portválasztás
-    label_serial_port = uilabel(panel_control_grid,'Text','Soros port szám: (COM):','HorizontalAlignment','right','Tag','SerialGroup');
-    label_serial_port.Layout.Row = 2; label_serial_port.Layout.Column = 1;
-    
-    port = uieditfield(panel_control_grid, 'numeric','Tag','SerialGroup', 'Visible','on'); 
-    port.Layout.Row = 2; port.Layout.Column = 2;
-    app.portName= "COM" + string(port.Value);
-    
-    % Szimbólumsebesség  (szimbólm/s)
-    label_baud = uilabel(panel_control_grid,'Text','Baud:','HorizontalAlignment','right', 'Tag','SerialGroup');
-    label_baud.Layout.Row = 3; label_baud.Layout.Column = 1;
+% ------------------------------------------------------------------------------------------------------------------------------
+% Callback-ek
+dropdown_connection_mode.ValueChangedFcn = @(src,event) switchMode(src);
+button_exit.ButtonPushedFcn = @(src,event) exitProgram();
+button_connection.ButtonPushedFcn = @(src,event) Connection();
+button_control.ButtonPushedFcn = @(src,event) runControl();
+button_calibrate.ButtonPushedFcn  = @(src,event) Calibration();
+button_record.ButtonPushedFcn = @(src,event) Recording();
 
-    baud = uidropdown(panel_control_grid,'Items',{'115200','230400','460800'},'Value','115200', 'Tag','SerialGroup');
-    baud.Layout.Row = 3; baud.Layout.Column = 2;
-    app.baudRate= baud.Value;
-
-    %% Wifi kapcsolat
-    % IP-cím
-    label_ip = uilabel(panel_control_grid,'Text','IP Cím:','HorizontalAlignment','right', 'Tag','WifiGroup', 'Visible','off');
-    label_ip.Layout.Row = 2; label_ip.Layout.Column = 1;
-
-    ip = uieditfield(panel_control_grid, 'text', 'Value', '192.168.4.1','Tag','WifiGroup', 'Visible','off');
-    ip.Layout.Row = 2; ip.Layout.Column = 2;
-    
-    % Wifi port
-    label_wifi_port = uilabel(panel_control_grid,'Text','Wifi Port:','HorizontalAlignment','right', 'Tag','WifiGroup', 'Visible','off');
-    label_wifi_port.Layout.Row = 3; label_wifi_port.Layout.Column = 1;
-    wifi_port = uieditfield(panel_control_grid, 'numeric', 'Value', 8080,'Tag','WifiGroup', 'Visible','off');
-    wifi_port.Layout.Row = 3; wifi_port.Layout.Column = 2;
-    
-    %% Vezérlő gombok
-    % Port keresés
-    button_refresh = uibutton(panel_control_grid,'Text','Port keresés (Frissít)','Tag','SerialGroup');
-    button_refresh.Layout.Row = 4; button_refresh.Layout.Column = [1 2];
-    
-    % Csatlakozás
-    button_connect = uibutton(panel_control_grid,'Text','Csatlakozás');
-    button_connect.Layout.Row = 5; button_connect.Layout.Column = 1;
-    
-    % Megszakítás
-    button_disconnect = uibutton(panel_control_grid,'Text','Lecsatlakozás','Enable','off');
-    button_disconnect.Layout.Row = 5; button_disconnect.Layout.Column = 2;
-    
-    % Kar választás
-    label_arm = uilabel(panel_control_grid,'Text','Mért végtag:','HorizontalAlignment','right');
-    label_arm.Layout.Row = 6; label_arm.Layout.Column = 1;
-    dropdown_arm = uidropdown(panel_control_grid, 'Items', {'Jobb kar', 'Bal kar'}, 'Value', 'Jobb kar');
-    dropdown_arm.Layout.Row = 6; dropdown_arm.Layout.Column = 2;
-    app.isLeftArm = false; % Alapértelmezés (Jobb)
-    
-    % Indítás
-    button_start = uibutton(panel_control_grid,'Text','Indítás','Enable','off');
-    button_start.Layout.Row = 7; button_start.Layout.Column = 1;
-    
-    % Leállítás
-    button_stop = uibutton(panel_control_grid,'Text','Megállítás','Enable','off');
-    button_stop.Layout.Row = 7; button_stop.Layout.Column = 2;
-    
-    % Kalibráció
-    button_calibrate  = uibutton(panel_control_grid, 'Text', 'Kalibráció', 'Enable', 'off', 'FontWeight', 'bold');
-    button_calibrate.Layout.Row = 8; button_calibrate.Layout.Column = [1 2];
-    % Adatrögzítés 
-    button_record = uibutton(panel_control_grid,'Text','Felvétel', 'FontColor', 'w', 'FontWeight', 'bold', 'Enable', 'off');
-    button_record.Layout.Row = 9; button_record.Layout.Column = [1 2];
-    % Kilépés
-    button_exit = uibutton(panel_control_grid,'Text','Kilépés','Enable','on');
-    button_exit.Layout.Row = 10; button_exit.Layout.Column = [1 2];
-
-    % Állapot
-    label_status = uilabel(panel_control_grid,'Text','Status: Disconnected');
-    label_status.Layout.Row = 11; label_status.Layout.Column = [1 2];
-    label_record_status = uilabel(panel_feedback_grid, 'Text', 'Adatok rögzítése: KI', 'FontColor', 'r','HorizontalAlignment','left');
-    label_record_status.Layout.Row = 4; label_record_status.Layout.Column = [1 2];
-    
-    %% Visszajelzés
-    % Mozgásforma
-    label_movement_type = uilabel(panel_feedback_grid,'Text','Mozgásforma:','HorizontalAlignment','left');
-    label_movement_type.Layout.Row = 1; label_movement_type.Layout.Column = [1 2];
-    
-    % Könyök szög
-    label_elbow_angle = uilabel(panel_feedback_grid, 'Text', 'Könyök szög: 0°','HorizontalAlignment','left');
-    value_elbow_angle.Layout.Row = 2; value_elbow_angle.Layout.Column = [1 2];
-    
-    % Csukló szög
-    label_wrist_angle = uilabel(panel_feedback_grid, 'Text', 'Csukló szög: 0°','HorizontalAlignment','left');
-    value_wrist_angle.Layout.Row = 3; value_wrist_angle.Layout.Column = [1 2];
-    
-    % ------------------------------------------------------------------------------------------------------------------------------
-    
-    % ------------------------------------------------------------------------------------------------------------------------------
-    %% 3D modellek
-    % Kar méretek és geometria
-    app.size_upper_arm = [30 10 10];
-    app.size_forearm = [30 10 10];
-    app.size_hand = [10 10 10];
-    app.upper_arm_fix = [0, 0, 30];
-
-    % Csúcsok és oldalak
-    [app.V_local_upper_arm, app.Faces] = boxGeometry(app.size_upper_arm);
-    [app.V_local_forearm, ~] = boxGeometry(app.size_forearm);
-    [app.V_local_hand, ~] = boxGeometry(app.size_hand);
-
-    % Patchek - Felkar/Alkar/Kézfej
-    app.patch_upper_arm = patch(model_ax, 'Vertices', app.V_local_upper_arm, 'Faces', app.Faces, 'FaceColor', 'red', 'FaceAlpha', 0.5);
-    app.patch_forearm   = patch(model_ax, 'Vertices', app.V_local_forearm, 'Faces', app.Faces, 'FaceColor', 'green', 'FaceAlpha', 0.5);
-    app.patch_hand      = patch(model_ax, 'Vertices', app.V_local_hand, 'Faces', app.Faces, 'FaceColor', 'blue', 'FaceAlpha', 0.5);
-    
-    % Plotok létrehozása - Könyök/Csukló + szögívek
-    app.marker_elbow    = plot3(model_ax, 0, 0, 0, 'mo','MarkerSize', 12,'MarkerFaceColor', 'm');
-    app.marker_wrist    = plot3(model_ax, 0, 0, 0, 'mo','MarkerSize', 12);
-
-    
-    % ------------------------------------------------------------------------------------------------------------------------------
-
-    % ------------------------------------------------------------------------------------------------------------------------------
-    % Modell alaphelyzetbe állítása
-    updateArmPose(app.patch_upper_arm, app.patch_forearm, app.patch_hand, ... 
-                                  app.marker_elbow, app.marker_wrist,...
-                                  app.V_local_upper_arm, app.V_local_forearm, app.V_local_hand, ... 
-                                  app.size_upper_arm, app.size_forearm, app.size_hand, ... 
-                                  eye(3), eye(3), eye(3), ... 
-                                  app.upper_arm_fix);
-    drawnow limitrate;
-    % ------------------------------------------------------------------------------------------------------------------------------
-
-    % ------------------------------------------------------------------------------------------------------------------------------
-    %% Kalibráció
-    % Offsetek
-    app.R_calib_chest = eye(3);
-    app.R_calib_upper_arm = eye(3);
-    app.R_calib_forearm = eye(3);
-    app.R_calib_hand = eye(3);
-    
-    % Kalibrációs kérés jelzése
-    app.requestCalibration = false;
-    app.isCalibrated = false;
-    app.isRecording = false;
-    
-    app.loggedData = []; % Rögzített adatok 
-    % ------------------------------------------------------------------------------------------------------------------------------
-    % Callback-ek
-    dropdown_mode.ValueChangedFcn = @(src,event) switchMode(src,panel_control_grid);    
-    dropdown_arm.ValueChangedFcn = @(src,event) setArmType(src);
-
-    button_refresh.ButtonPushedFcn = @(src,event) refreshSettings();                    
-    button_exit.ButtonPushedFcn = @(src,event) exitProgram();                          
-    button_connect.ButtonPushedFcn = @(src,event) connectSerial();                      
-    button_disconnect.ButtonPushedFcn = @(src,event) disconnectSerial();                
-    button_start.ButtonPushedFcn = @(src,event) startProgram();                            
-    button_stop.ButtonPushedFcn = @(src,event) stopProgram();                              
-    button_calibrate.ButtonPushedFcn  = @(src,event) Calibration();
-    button_record.ButtonPushedFcn = @(src,event) Recording();
-    
-    % ------------------------------------------------------------------------------------------------------------------------------
- 
-    % ------------------------------------------------------------------------------------------------------------------------------
-    % Lokális függvények
-    
-    function refreshSettings()
-        % Leírás: 
-        % Az inputokból kiolvassa és menti a megadott soros port paramétereit. 
-
-        app.portName = "COM" + string(port.Value);
-        app.baudRate = str2double(baud.Value);
-        
-        % Output
-        label_status.Text = "Beállítás frissítve: " + app.portName + ", " + baud.Value;
-        label_status.FontColor = 'w';
-    end
-
-    function setArmType(src)
-        % Leírás:
-        app.isLeftArm = strcmp(src.Value, 'Bal kar');
-    end
-
-    function connectSerial()
-        % Leírás: 
-        % Megkísérli a soros kommunikáció létrehozását a beállított paraméterek alapján.
-        
-        % Paraméterek
-        app.portName = "COM" + string(port.Value);
-        app.baudRate = str2double(baud.Value);
-        
-        % Soros kapcsolat
-        try
-            app.serial = initialSerial(app.portName, app.baudRate);  % Külső függvény
-
-            
-            label_status.Text = "Csatlakozva: " + app.portName;
-            label_status.FontColor = 'g';
-            button_start.Enable = 'on';
-            button_disconnect.Enable = 'on';
-
-        catch errConnection
-            label_status.Text = "Hiba: " + errConnection.message;
-            label_status.WordWrap = 'on';
-            label_status.FontColor = 'r';
-            label_status.FontSize = 9;
+% ------------------------------------------------------------------------------------------------------------------------------
+% Lokális függvények
+    function switchMode(src)
+        if strcmp(src.Value, 'Wifi')
+            label_serial_port.Visible = 'off'; port.Visible = 'off';
+            label_baud.Visible = 'off'; baud.Visible = 'off';
+            label_wifi_port.Visible = 'on'; wifi_port.Visible = 'on';
+        else
+            label_serial_port.Visible = 'on'; port.Visible = 'on';
+            label_baud.Visible = 'on'; baud.Visible = 'on';
+            label_wifi_port.Visible = 'off'; wifi_port.Visible = 'off';
         end
     end
 
-    function startProgram()
+    function showDevMode(src)
+        if src.Value
+            visState = 'on';
+        else
+            visState = 'off';
+        end
 
-        % Leírás: 
+        label_right_angle.Visible = visState;
+        label_right_shoulder_angle.Visible = visState;
+        label_right_elbow_angle.Visible = visState;
+        label_right_wrist_angle.Visible = visState;
 
-        app.run = true; % Fut-e a program? 
-        button_start.Enable = 'off';
-        button_stop.Enable = 'on';
-        button_disconnect.Enable = 'off';
-        button_calibrate.Enable = 'on';
-        button_record.Enable = 'on';
+        label_left_angle.Visible = visState;
+        label_left_shoulder_angle.Visible = visState;
+        label_left_elbow_angle.Visible = visState;
+        label_left_wrist_angle.Visible = visState;
 
-        label_status.Text = 'Adatok fogadása...';
-        label_status.FontColor = [0 0.8 0];
+        if checkbox_guided.Value
+            uistack(label_exercise_title, 'top');
+            uistack(dropdown_exercise, 'top');
+            uistack(gif_display, 'top');
+        end
+    end
 
-        % Kezdő mátrixok
-        R_raw_chest = eye(3);
-        R_raw_upper_arm = eye(3);
-        R_raw_forearm = eye(3);
-        R_raw_hand = eye(3);
-        
-        % Flag
-        got_all = 0;
+    function changeExercise(src)
+        switch src.Value
+            case '1. Könyökhajlítás'
+                gif_display.ImageSource = 'bicepsz.gif';
+            case '2. Alkar forgatás'
+                gif_display.ImageSource = 'alkar_forgatas.gif';
+            case '3. Váll előreemelés'
+                gif_display.ImageSource = 'vall_elore.gif';
+            case '4. Váll oldalra emelés'
+                gif_display.ImageSource = 'vall_oldalra.gif';
+            case '5. Váll csavarás'
+                gif_display.ImageSource = 'vall_csavaras.gif';
+        end
+    end
 
-        while app.run
-            if ~isvalid(app.figure) 
-                break; 
-            end
-
-            % Adatolvasás
-            if app.serial.NumBytesAvailable > 0
-                try
-                    % --------------------------------------------------------------------------------------------------------------
-                    % Szenzoradatok kinyerése
-                    line = char(readline(app.serial));                  
-
-                    % 0. szenzor - Felkar
-                    if startsWith(line, '0:')
-                        data = sscanf(line, '0: %f %f %f %f'); % 4 szám 
-                        if length(data) == 4
-                            R_raw_upper_arm = quat2rotm(data');
-                            got_all = got_all + 1;
-                        end
-                    
-                    % 1. szenzor - Alkar
-                    elseif startsWith(line, '1:')
-                        data = sscanf(line, '1: %f %f %f %f'); 
-                        if length(data) == 4
-                            R_raw_forearm = quat2rotm(data');
-                            got_all = got_all + 1;
-                        end
-                    
-                    % 2. szenzor : Kézfej
-                    elseif startsWith(line, '2:')
-                        data = sscanf(line, '2: %f %f %f %f'); 
-                        if length(data) == 4
-                            R_raw_hand = quat2rotm(data');
-                            got_all = got_all + 1;
-                        end
-                    % 4. szenzor: Mellkas
-                    elseif startsWith(line, '4:')
-                        data = sscanf(line, '4: %f %f %f %f'); 
-                        if length(data) == 4
-                            R_raw_chest = quat2rotm(data') * [1, 0, 0; 0, 0, 1; 0, -1, 0];
-                            got_all = got_all + 1;
-                        end
-                    end
-                    % --------------------------------------------------------------------------------------------------------------
-                    
-                    % --------------------------------------------------------------------------------------------------------------
-                    % xxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-                    if got_all == 4
-                        % --------------------------------------------------------------------------------------------------------------
-                        % Kalibráció (T-Pose rögzítése)
-                        if app.requestCalibration
-                            app.R_calib_upper_arm = R_raw_upper_arm; 
-                            app.R_calib_forearm = R_raw_forearm; 
-                            app.R_calib_hand = R_raw_hand; 
-                            app.R_calib_chest = R_raw_chest;
-    
-                            app.requestCalibration = false;
-                            app.isCalibrated = true; 
-                            
-                            label_status.Text = 'Kalibráció megtörtént!';
-                            label_status.FontColor = 'g';
-                            pause(0.5);
-                        end
-    
-                       % --------------------------------------------------------------------------------------------------------------
-                       %% Kinematika
-    
-                       % R_final = R_raw * R_calib'
-                       R_final_upper_arm = R_raw_upper_arm * app.R_calib_upper_arm';
-                       R_final_forearm = R_raw_forearm * app.R_calib_forearm';
-                       R_final_hand = R_raw_hand * app.R_calib_hand';
-                       R_final_chest = R_raw_chest * app.R_calib_chest';
-                        
-                       % --------------------------------------------------------------------------------------------------------------
-                       % Ízületek
-                       % XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-                       R_shoulder_joint = R_final_chest' * R_final_upper_arm;
-                       R_shoulder_viz = clampJointRotation('shoulder', R_shoulder_joint, app.isCalibrated, app.isLeftArm);
-                       
-                       R_elbow_joint = R_final_upper_arm' * R_final_forearm; 
-                       R_elbow_viz = clampJointRotation('elbow', R_elbow_joint, app.isCalibrated, app.isLeftArm); 
-                       
-                       R_wrist_joint = R_final_forearm' * R_final_hand; 
-                       R_wrist_viz = clampJointRotation('wrist', R_wrist_joint, app.isCalibrated, app.isLeftArm);
-   
-                       % Ízületi szögek meghatározása
-                       angle_elbow_deg = calculateJointAngle(R_final_upper_arm, R_final_forearm);
-                       angle_wrist_deg = calculateJointAngle(R_final_forearm, R_final_hand);
-                       label_elbow_angle.Text = sprintf('Könyök szög: %.1f°', angle_elbow_deg);
-                       label_wrist_angle.Text = sprintf('Csukló szög: %.1f°', angle_wrist_deg);
-                        
-                       % --------------------------------------------------------------------------------------------------------------
-                        
-                       % --------------------------------------------------------------------------------------------------------------
-                       % Modell frissítése
-                       
-                       updateArmPose(app.patch_upper_arm, app.patch_forearm, app.patch_hand, ... 
-                                     app.marker_elbow, app.marker_wrist,...
-                                     app.V_local_upper_arm, app.V_local_forearm, app.V_local_hand, ... 
-                                     app.size_upper_arm, app.size_forearm, app.size_hand, ... 
-                                     R_shoulder_viz, R_elbow_viz, R_wrist_viz, ... 
-                                     app.upper_arm_fix);
-                       % --------------------------------------------------------------------------------------------------------------
-    
-                       % --------------------------------------------------------------------------------------------------------------
-                       % Adatok rögzítése
-                       if app.isRecording
-                           currentTime = toc(app.recordStartTime); 
-                            
-                           % Euler szögek
-                           eul_upper_arm = rad2deg(rotm2eul(R_shoulder_joint, 'ZYX'));
-                           eul_forearm = rad2deg(rotm2eul(R_elbow_joint, 'ZYX'));
-                           eul_hand  = rad2deg(rotm2eul(R_wrist_joint, 'ZYX'));
-                            
-                           % Egy sornyi adat összeállítása
-                           newRow = [currentTime, eul_upper_arm(1), eul_upper_arm(2), eul_upper_arm(3), ...
-                                                  eul_forearm(1), eul_forearm(2), eul_forearm(3), ...
-                                                  eul_hand(1),  eul_hand(2),  eul_hand(3), ...
-                                                  angle_elbow_deg, angle_wrist_deg];
-                                                   
-                           app.loggedData = [app.loggedData; newRow]; 
-                       end
-                       % --------------------------------------------------------------------------------------------------------------
-                       
-                       drawnow limitrate;
-                       
-                       got_all = 0;
-                        
-                       flush(app.serial, "input");
-                        
-                    end
-                    % --------------------------------------------------------------------------------------------------------------
-                
-                catch errRead
-                    fprintf('Beolvasási hiba: %s\n', errRead.message);
+    function Connection()
+        if strcmp(button_connection.Text, 'Csatlakozás')
+            try
+                if strcmp(dropdown_connection_mode.Value, 'Wifi')
+                    app.receiver = udpReceiver();
+                    params.port = wifi_port.Value;
+                else
+                    app.receiver = serialReceiver();
+                    params.portName = "COM" + string(port.Value);
+                    params.baudRate = str2double(baud.Value);
                 end
-            else
-                pause(0.002);
+
+                app.receiver.open(params);
+
+                label_status.Text = "Csatlakozva (" + dropdown_connection_mode.Value + ")";
+                label_status.FontColor = 'g';
+                button_connection.Text = 'Lecsatlakozás';
+                button_control.Enable = 'on';
+
+            catch errConnection
+                label_status.Text = "Hiba: " + errConnection.message;
+                label_status.FontColor = 'r';
+                label_status.WordWrap = 'on';
+                label_status.FontSize = 9;
             end
-        end
-    end
-
-    function stopProgram()
-
-        % Leírás: 
-        % Leállítja az adatok feldolgozását.
-
-        app.run = false;
-        button_start.Enable = 'on';
-        button_stop.Enable = 'off';
-        button_disconnect.Enable = 'on';
-        button_record.Enable = 'on';
-        label_status.Text = "Mérés leállítva.";
-    end
-
-    function disconnectSerial()
-        % Leírás:
-        % A soros kapcsolat biztonságos bontása
-        try
-            if ~isempty(app.serial)
-                delete(app.serial);
-                app.serial = [];
+        else
+            if isfield(app, 'receiver') && ~isempty(app.receiver)
+                app.receiver.close();
             end
-    
             label_status.Text = "Lecsatlakozva.";
-            button_connect.Enable = "on";
-            button_disconnect.Enable = "off";
-            button_start.Enable = "off";
-            button_stop.Enable = "off";
-    
-        catch errDisconnect
-            label_status.Text = "Hiba: " + errDisconnect.message;
+            label_status.FontColor = 'k';
+            button_connection.Text = 'Csatlakozás';
+            button_control.Enable = "off";
+            app.run = false;
         end
     end
-    
-    function Calibration()
-        % Leírás:
-        % Elindít egy kalibrációt
-        app.requestCalibration = true;
-        label_status.Text = "Kalibrálás folyamatban...";
+
+
+
+
+    function showGuidedMode(src)
+        if src.Value
+            state = 'on';
+            label_movement_type.Text='Helyesség:';
+        else
+            state = 'off';
+            label_movement_type.Text='Mozgásforma:';
+        end
+
+        label_exercise_title.Visible = state;
+        dropdown_exercise.Visible = state;
+        gif_display.Visible = state;
+
     end
-    
+    function runControl()
+        if ~app.run
+            app.run = true;
+            button_control.Text = 'Megállítás';
+            button_calibrate.Enable = 'on';
+            button_record.Enable = 'on';
+            app.totalPacketCount = 0;
+            app.lastDataTime = tic;
+            label_status.Text = 'Adatok fogadása és feldolgozása...';
+            label_status.FontColor = [0 0.8 0];
+
+            % A Modern Aszinkron Főciklus
+            while app.run
+                if ~isvalid(app.figure), break; end
+
+                % Adatok beolvasása
+                dataMatrix = app.receiver.readData();
+
+                if ~isempty(dataMatrix)
+                    app.totalPacketCount = app.totalPacketCount + size(dataMatrix, 1);
+                    app.lastDataTime = tic;
+
+                    if ~isfield(app, 'lastUIUpdateTime')
+                        app.lastUIUpdateTime = tic;
+                    end
+
+                    for row = 1:size(dataMatrix, 1)
+                        sensorID = dataMatrix(row, 1);
+                        quaternionVector = dataMatrix(row, 2:5);
+
+                        if isfield(app, 'latestSensorBuffer') && sensorID >= 0 && sensorID <= 6 && size(dataMatrix, 2) >= 11
+                            app.latestSensorBuffer(sensorID + 1, :) = dataMatrix(row, 2:11);
+                        end
+
+                        % Fix Hardver Kiosztás (7 szenzor / 2 kar):
+                        % S3 = Mellkas
+                        % S0, S1, S2 = BAL KAR (S0: Bal Kézfej, S1: Bal Alkar, S2: Bal Felkar)
+                        % S4, S5, S6 = JOBB KAR (S4: Jobb Kézfej, S5: Jobb Alkar, S6: Jobb Felkar)
+                        if sensorID == 3
+                            app.R_raw_chest = quat2rotm(quaternionVector) * [1, 0, 0; 0, 0, 1; 0, -1, 0];
+                            % BAL KAR
+                        elseif sensorID == 2,  app.arm_left.updateSensorData(0, quaternionVector); % S2: Bal Felkar
+                        elseif sensorID == 1,  app.arm_left.updateSensorData(1, quaternionVector); % S1: Bal Alkar
+                        elseif sensorID == 0,  app.arm_left.updateSensorData(2, quaternionVector); % S0: Bal Kézfej
+                            % JOBB KAR
+                        elseif sensorID == 6,  app.arm_right.updateSensorData(0, quaternionVector); % S6: Jobb Felkar
+                        elseif sensorID == 5,  app.arm_right.updateSensorData(1, quaternionVector); % S5: Jobb Alkar
+                        elseif sensorID == 4,  app.arm_right.updateSensorData(2, quaternionVector); % S4: Jobb Kézfej
+                        end
+                    end
+
+                    % Kalibráció
+                    if app.requestCalibration
+                        app.arm_right.calibrate();
+                        app.arm_left.calibrate();
+                        app.R_calib_chest = app.R_raw_chest;
+
+                        app.requestCalibration = false;
+                        app.isCalibrated = true;
+                        label_status.Text = 'Kalibrálás megtörtént';
+                    end
+
+                    % Kinematikai frissítés és 3D rajzolás
+                    chest_final = app.R_raw_chest * app.R_calib_chest';
+                    app.arm_right.computeKinematics(chest_final, app.isCalibrated);
+                    app.arm_left.computeKinematics(chest_final, app.isCalibrated);
+
+                    % 3D Modell Láthatóságának beállítása a Dropdown alapján
+                    switch dropdown_arm.Value
+                        case 'Mindkettő'
+                            set([app.arm_right.patch_upper_arm, app.arm_right.patch_forearm, app.arm_right.patch_hand], 'Visible', 'on');
+                            set([app.arm_left.patch_upper_arm, app.arm_left.patch_forearm, app.arm_left.patch_hand], 'Visible', 'on');
+                        case 'Jobb kar'
+                            set([app.arm_right.patch_upper_arm, app.arm_right.patch_forearm, app.arm_right.patch_hand], 'Visible', 'on');
+                            set([app.arm_left.patch_upper_arm, app.arm_left.patch_forearm, app.arm_left.patch_hand], 'Visible', 'off');
+                        case 'Bal kar'
+                            set([app.arm_right.patch_upper_arm, app.arm_right.patch_forearm, app.arm_right.patch_hand], 'Visible', 'off');
+                            set([app.arm_left.patch_upper_arm, app.arm_left.patch_forearm, app.arm_left.patch_hand], 'Visible', 'on');
+                    end
+
+                    % UI Címkék frissítése 10 Hz-re korlátozva
+                    if toc(app.lastUIUpdateTime) > 0.1
+                        app.lastUIUpdateTime = tic;
+                        label_status.Text = sprintf('Adatfolyam AKTÍV');
+                        label_status.FontColor = [0 0.7 0];
+
+                        eulR_shoulder = app.arm_right.eul_shoulder; eulR_elbow = app.arm_right.eul_elbow; eulR_wrist = app.arm_right.eul_wrist;
+                        eulL_shoulder = app.arm_left.eul_shoulder;  eulL_elbow = app.arm_left.eul_elbow;  eulL_wrist = app.arm_left.eul_wrist;
+
+                        label_right_shoulder_angle.Text = sprintf('Váll (Jobb):  [Csavarás: %4.1f° | Emelés: %4.1f° | Forgatás: %4.1f°]', eulR_shoulder(3), eulR_shoulder(2), eulR_shoulder(1));
+                        label_right_elbow_angle.Text    = sprintf('Könyök (Jobb): [Csavarás: %4.1f° | Emelés: %4.1f° | Forgatás: %4.1f°]', eulR_elbow(3),    eulR_elbow(2),    eulR_elbow(1));
+                        label_right_wrist_angle.Text    = sprintf('Csukló (Jobb): [Csavarás: %4.1f° | Emelés: %4.1f° | Forgatás: %4.1f°]', eulR_wrist(3),    eulR_wrist(2),    eulR_wrist(1));
+
+                        label_left_shoulder_angle.Text  = sprintf('Váll (Bal):   [Csavarás: %4.1f° | Emelés: %4.1f° | Forgatás: %4.1f°]', eulL_shoulder(3), eulL_shoulder(2), eulL_shoulder(1));
+                        label_left_elbow_angle.Text     = sprintf('Könyök (Bal):  [Csavarás: %4.1f° | Emelés: %4.1f° | Forgatás: %4.1f°]', eulL_elbow(3),    eulL_elbow(2),    eulL_elbow(1));
+                        label_left_wrist_angle.Text     = sprintf('Csukló (Bal):  [Csavarás: %4.1f° | Emelés: %4.1f° | Forgatás: %4.1f°]', eulL_wrist(3),    eulL_wrist(2),    eulL_wrist(1));
+                    end
+
+                    % Adatok rögzítése (Optimalizált tömb-hozzáfűzéssel)
+                    if app.isRecording
+                        currentTime = toc(app.recordStartTime);
+                        if ~isfield(app, 'latestSensorBuffer') || isempty(app.latestSensorBuffer)
+                            app.latestSensorBuffer = zeros(7, 10);
+                        end
+                        imuFlat = reshape(app.latestSensorBuffer', 1, []);
+                        newRow = [currentTime, imuFlat, app.currentLabelID];
+                        app.logIndex = app.logIndex + 1;
+                        app.loggedData(app.logIndex, :) = newRow;
+                    end
+
+                    % Azonnali sima rajzolás minden beérkező adatcsomagra
+                    drawnow limitrate;
+                else
+                    if isfield(app, 'lastDataTime') && toc(app.lastDataTime) > 1.5
+                        label_status.Text = 'Várakozás ESP32 adatokra... (Nincs érkező csomag)';
+                        label_status.FontColor = [0.85 0.2 0.2];
+                    end
+                    pause(0.002); % Mikro-szünet a CPU felpörgés és az akadozás megszüntetésére
+                end
+            end
+        else
+            if app.isRecording
+                Recording(); % Leállítjuk a rögzítést ha a mérés leáll
+            end
+            app.run = false;
+            button_control.Text = 'Indítás';
+            button_record.Enable = 'off';
+            label_status.Text = "Mérés leállítva.";
+            label_status.FontColor = 'k';
+        end
+    end
+
     function Recording()
-        % Leírás:
-        %
         if ~app.isRecording
             app.isRecording = true;
-            app.loggedData = []; % Memória törlése
-            app.recordStartTime = tic; % Időzítő indítása
-                
-            button_record.Text = 'FELVÉTEL LEÁLLÍTÁSA';
-            label_record_status.Text = 'ADATOK RÖGZÍTÉSE FOLYAMATBAN...';
-            label_record_status.FontColor = [0 0.8 0];
+            app.recordStartTime = tic;
+            app.loggedData = [];
+            app.latestSensorBuffer = zeros(7, 10);
+
+            % Címke felismerése a kiválasztott gyakorlatból
+            selectedEx = dropdown_exercise.Value;
+            if contains(selectedEx, '1.')
+                app.currentLabelID = 1; app.currentLabelName = 'Konyokhajlitas';
+            elseif contains(selectedEx, '2.')
+                app.currentLabelID = 2; app.currentLabelName = 'AlkarForgatas';
+            elseif contains(selectedEx, '3.')
+                app.currentLabelID = 3; app.currentLabelName = 'VallEloreEmeles';
+            elseif contains(selectedEx, '4.')
+                app.currentLabelID = 4; app.currentLabelName = 'VallOldalraEmeles';
+            elseif contains(selectedEx, '5.')
+                app.currentLabelID = 5; app.currentLabelName = 'VallCsavaras';
+            else
+                app.currentLabelID = 0; app.currentLabelName = 'Gyakorlat';
+            end
+
+            button_record.Text = 'RÖGZÍTÉS FOLYAMATBAN (Stop)';
+            button_record.BackgroundColor = [0.85 0.2 0.2];
+            button_record.FontColor = 'w';
+            label_status.Text = sprintf('Adatrögzítés elindítva: %s (ID: %d)', app.currentLabelName, app.currentLabelID);
+            label_status.FontColor = [0.8 0 0];
         else
             app.isRecording = false;
-                
-            button_record.Text = 'FELVÉTEL INDÍTÁSA';
-            label_record_status.Text = 'ADATOK ELMENTVE';
-            label_record_status.FontColor = 'g';
-                
-            % Fájlba írás
+            button_record.Text = 'Adatok rögzítése: KI';
+            button_record.BackgroundColor = [0.94 0.94 0.94];
+            button_record.FontColor = 'k';
+
             if ~isempty(app.loggedData)
-                header = {'Ido_mp', 'UA_X', 'UA_Y', 'UA_Z', 'FA_X', 'FA_Y', 'FA_Z', 'H_X', 'H_Y', 'H_Z', 'Elbow_A', 'Wrist_A'};
-                T = array2table(app.loggedData, 'VariableNames', header);
-                filename = 'Meresi_Adatok.csv';
-                writetable(T, filename);
-                label_status.Text = "Adatok sikeresen mentve: " + filename;
+                if ~exist('dataset', 'dir')
+                    mkdir('dataset');
+                end
+                timeStr = datestr(now, 'yyyy-mm-dd_HHMMSS');
+                fileNameBase = sprintf('dataset/Ex%d_%s_%s', app.currentLabelID, app.currentLabelName, timeStr);
+
+                loggedData = app.loggedData;
+                save([fileNameBase, '.mat'], 'loggedData');
+                writematrix(loggedData, [fileNameBase, '.csv']);
+
+                label_status.Text = sprintf('Mérés elmentve: %s.csv (%d sor)', fileNameBase, size(loggedData, 1));
+                label_status.FontColor = [0 0.6 0];
+            else
+                label_status.Text = 'Rögzítés leállítva (nincs mentett adat).';
+                label_status.FontColor = 'k';
             end
         end
+    end
+
+    function Calibration()
+        app.requestCalibration = true;
     end
 
     function exitProgram()
-        % Leírás:
         % Leállítja és bezárja a programot,megszakítja a kapcsolatot
-            app.run = false;
-        
-            if isfield(app, "serial") && ~isempty(app.serial)
-                try
-                    delete(app.serial);
-                catch errExit
-                    label_status.Text = "Hiba: " + errExit.message;
-                end
-            end
-            delete(app.figure);
-     end
-    
+        app.run = false;
+        if isfield(app, "receiver") && ~isempty(app.receiver)
+            app.receiver.close();
+        end
+        delete(app.figure);
+    end
 end
