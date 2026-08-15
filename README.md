@@ -1,6 +1,4 @@
 # Wearable-IMU-based-Upper-Limb-Motion-Tracking-System
-<<<<<<< Updated upstream
-Coming soon - 2026
 =======
 Egyetemi projekt 
 
