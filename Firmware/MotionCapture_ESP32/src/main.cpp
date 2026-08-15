@@ -45,7 +45,7 @@ void taskNetworkSend(void *pvParameters) {
 }
 
 void setup() {
-  Serial.begin(115200);
+  Serial.begin(921600);
   delay(100);
 
   // Kapcsolat kiválasztása

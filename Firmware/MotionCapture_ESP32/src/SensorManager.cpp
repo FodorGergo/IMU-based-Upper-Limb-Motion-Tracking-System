@@ -20,6 +20,7 @@ static bool checkI2CAddress(uint8_t addr) {
 
 void initSensors() {
   Wire.begin();
+  Wire.setClock(400000); // 400 kHz Fast-Mode I2C busz a 7 szenzorhoz
   Wire.setTimeOut(50);
   delay(50);
 

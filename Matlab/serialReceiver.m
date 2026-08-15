@@ -30,6 +30,12 @@ classdef serialReceiver < dataReceiver
                 obj.buffer = [obj.buffer, uint8(newBytes(:)')];
             end
 
+            % Puffer túlzott feltorlódása elleni védelem (lag-preventer):
+            % Ha több mint 10 csomag (440 bájt) felgyülemlett, a legutolsó 440 bájtra ugrunk
+            if length(obj.buffer) > packetSize * 10
+                obj.buffer = obj.buffer(end - (packetSize * 10) + 1 : end);
+            end
+
             while length(obj.buffer) >= packetSize
                 % Header ellenőrzése (0xAA = 170, 0xBB = 187)
                 if obj.buffer(1) == 170 && obj.buffer(2) == 187

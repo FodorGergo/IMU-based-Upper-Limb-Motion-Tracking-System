@@ -58,7 +58,7 @@ port.Layout.Row = 2; port.Layout.Column = 2;
 
 label_baud = uilabel(panel_control_grid,'Text','Baud:','HorizontalAlignment','right');
 label_baud.Layout.Row = 3; label_baud.Layout.Column = 1;
-baud = uidropdown(panel_control_grid,'Items',{'115200','230400','460800'},'Value','115200');
+baud = uidropdown(panel_control_grid,'Items',{'115200','230400','460800','921600'},'Value','921600');
 baud.Layout.Row = 3; baud.Layout.Column = 2;
 
 % Wi-Fi kapcsolat
